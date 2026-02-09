@@ -1,13 +1,6 @@
-import sympy as sym
 import numpy as np
-import math, datetime, os
-import matplotlib.pyplot as plt
+import math
 from tqdm import tqdm
-from scipy.spatial import ConvexHull
-from scipy.stats import binned_statistic_2d
-
-from scipy.special import erf, erfinv
-from scipy.stats import qmc
 
 # |%%--%%| <YwStxGLPTl|e8noAh2Wcz>
 
@@ -40,14 +33,9 @@ class CalabiYau:
 
         polyK_a = 1/2 * np.einsum('abc,nb,nc->na', self.arrayK, ms, ms)
         polyK_ab = np.einsum('abc,nc->nab', self.arrayK, ms)
-        #kappa_inv_ab = np.linalg.inv(polyK_ab)
         
         matrG_num = 1/4 * (polyK_a[:,:,None] * polyK_a[:,None,:] - polyK_ab[:,:,:] * polyK[:,None,None]) / polyK[:,None,None] ** 2
-        #matrG_inv_num = (-np.exp(-scalarK)[:,None,None] * kappa_inv_ab / 2 + 2*np.einsum('na,nb->nab', ms, ms))
         matrG_inv_num = np.linalg.inv(matrG_num)
-
-        # cy.compute_inverse_metric; polyK = volume
-        #print(16 * matrG_num * polyK ** 2)
 
         _, logdetG_num = np.linalg.slogdet(matrG_num)
         

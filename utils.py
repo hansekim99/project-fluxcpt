@@ -2,7 +2,6 @@ import time
 from fractions import Fraction
 from math import factorial
 from contextlib import contextmanager
-from tqdm import tqdm
 
 @contextmanager
 def timer(label="", hide = False):

@@ -1,5 +1,3 @@
-import numpy as np
-import igraph as ig
 import itertools, tqdm
 from typing import List, Optional
 from dataclasses import dataclass
@@ -175,9 +173,13 @@ def index_density(n): # n = h21
 
 #|%%--%%| <dq53fCWSkj|42VGVABTt5>
 
+import pickle
+
 if __name__ == "__main__":
-    n = 5
+    n = 6
     rho = index_density(n)
     
     dict_print(rho)
     
+    with open(f"index_cmbn/index_cmbn_{n}.json", "wb") as f:
+        pickle.dump(rho, f)
