@@ -1,18 +1,19 @@
 import numpy as np
-import math
+import math, scipy
 from tqdm import tqdm
 
 # |%%--%%| <YwStxGLPTl|e8noAh2Wcz>
 
 class CalabiYau:
-    def __init__(self, h21, arrayK, kahler_rays = np.array([1.]),
-                moduli_interval = (2,5), qd3 = 10,
+    def __init__(self, h21, arrayK, cone_hyperplane = np.array([[1.]]),
+                moduli_max = 10, moduli_cutoff = 1, qd3 = 10,
                 moduli_sample_no = int(5e6)):
         self.n = h21
         self.arrayK = arrayK
-        self.kahler_rays = kahler_rays
+        self.hyperplane = cone_hyperplane
+
+        self.m_m, self.m_c = moduli_max, moduli_cutoff
         
-        self.mi = moduli_interval
         self.qd3 = qd3
 
         self.msno = int(1e1)                          # size of paralellised calculations
@@ -21,11 +22,18 @@ class CalabiYau:
         self.rng = np.random.default_rng()
     
     def _moduli_uniform_sample(self):
-        raw_moduli_im_samples = self.rng.uniform(*self.mi, size = (self.msno, self.n))
-        
-        moduli_im_samples = raw_moduli_im_samples @ self.kahler_rays.T
+        # rejection sampling within the kahler cone
+        # for each choice of n-1 rays, obtain one hyperplane
 
-        return moduli_im_samples
+        moduli_im_samples = np.empty_like([[1,1]])
+        
+        while moduli_im_samples.shape[0] < self.msno+1:
+            raw_moduli_im_samples = self.rng.uniform(-self.m_m, self.m_m, size = (self.msno, self.n))
+            dist_from_hyperplane = raw_moduli_im_samples @ self.hyperplane.T / (np.linalg.norm(self.hyperplane, axis = 1))
+            filter = (dist_from_hyperplane > self.m_c).all(axis = 1)
+            moduli_im_samples = np.vstack((moduli_im_samples, raw_moduli_im_samples[filter]))
+        
+        return moduli_im_samples[1:self.msno+1]
 
     def _ms_num(self, ms):
         polyK = 1/6 * np.einsum('abc,na,nb,nc->n', self.arrayK, ms, ms, ms)
@@ -90,9 +98,9 @@ class CalabiYau:
     def uniform_integrate(self, scalar_distr, mrl = False):
         averaged_scalar = np.mean(scalar_distr)
         
-        volume_uniform = (self.mi[1] - self.mi[0]) ** self.n * np.linalg.det(self.kahler_rays) # change for new sampling
+        #volume_uniform = (self.mi[1] - self.mi[0]) ** self.n * np.linalg.det(self.kahler_rays) # change for new sampling
 
         prefactor = (2*np.pi) ** (2*(self.n+1)) / math.factorial(2*(self.n+1))
         axiodilaton = np.pi / 12
 
-        return averaged_scalar * volume_uniform * prefactor * axiodilaton
+        return averaged_scalar * prefactor * axiodilaton #* volume_uniform
