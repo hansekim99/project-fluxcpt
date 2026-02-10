@@ -25,6 +25,7 @@ def block_coeff(n, d, m, block):
     #return block.pre_coeff * coeff, block.pre_coeff * singular_coeff
     return block.pre_coeff * coeff
 
+@lru_cache(maxsize=None)
 def canonical_weight(weight):
     d = len(weight)
     if d == 1:
