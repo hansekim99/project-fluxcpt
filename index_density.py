@@ -2,8 +2,11 @@ import itertools, tqdm
 from typing import List, Optional
 from dataclasses import dataclass
 
-from utils import *
-from graph_iso import *
+from importlib import reload
+import utils, graph_iso
+
+reload(utils)
+reload(graph_iso)
 
 @dataclass()
 class Block:
@@ -14,11 +17,11 @@ class Block:
     # total integers
     @property
     def int_points_num(self):
-        return sum(int_pts_num(s) for s in self.species)
+        return sum(utils.int_pts_num(s) for s in self.species)
     
     @property
     def power_D(self):
-        return sum(2*(1-int_pts_num(s)) for s in self.species)
+        return sum(2*(1-utils.int_pts_num(s)) for s in self.species)
     
     def insert(self, new_species):
         return Block(self.species + [new_species], self.pre_coeff)
@@ -56,10 +59,10 @@ def pre_contr_conn(block_list : list[Block]):
         ext_conn, int_conn, excluded_pts = [], [], []
 
         for i, s in enumerate(block.species):
-            ext_conn += pre_ext_contraction_ext_points(s, 3*i, int_pts_count)
-            int_conn += pre_ext_contraction_int_points(s, 3*i, int_pts_count)
-            excluded_pts += excluded_pre_ext_contr_points(s, 3*i, int_pts_count)
-            int_pts_count += int_pts_num(s)
+            ext_conn += utils.pre_ext_contraction_ext_points(s, 3*i, int_pts_count)
+            int_conn += utils.pre_ext_contraction_int_points(s, 3*i, int_pts_count)
+            excluded_pts += utils.excluded_pre_ext_contr_points(s, 3*i, int_pts_count)
+            int_pts_count += utils.int_pts_num(s)
 
         new_block_list.append(Block(block.species, block.pre_coeff,
                                 (ext_conn, int_conn, excluded_pts)))
@@ -78,7 +81,7 @@ def ext_contr_conn(block_list : list[Block]):
             for i in range(len(ext_conn) // 3):
                 new_ext_conn[3*i+1] = excluded_pts[perm[i]]
 
-            one_ov_fact_ = one_ov_fact(perm, len(block.species))
+            one_ov_fact_ = utils.one_ov_fact(perm, len(block.species))
 
             new_block_list.append(Block(block.species, block.pre_coeff * one_ov_fact_,
                                     (new_ext_conn, int_conn)))
@@ -88,7 +91,7 @@ def ext_contr_conn(block_list : list[Block]):
 def int_contr_conn(block_list : list[Block], tqdm_hide = False):
     new_block_list = []
 
-    for block in tqdm.tqdm(block_list, bar_format = bar_fmt, desc = "Int. Contr.", disable = tqdm_hide):
+    for block in tqdm.tqdm(block_list, bar_format = graph_iso.bar_fmt, desc = "Int. Contr.", disable = tqdm_hide):
         ext_conn, int_conn = block.cb_ph
         perms_int = list(itertools.permutations(range(len(int_conn))))
 
@@ -106,7 +109,7 @@ def int_contr_conn(block_list : list[Block], tqdm_hide = False):
 def contr_conn_to_weight(block_list: list[Block], tqdm_hide = False):
     new_block_list = []
     
-    for block in tqdm.tqdm(block_list, bar_format = bar_fmt, desc = "Graph Conv.", disable = tqdm_hide):
+    for block in tqdm.tqdm(block_list, bar_format = graph_iso.bar_fmt, desc = "Graph Conv.", disable = tqdm_hide):
         perm = block.cb_ph
         d = len(perm) // 3
         w = [[0]*d for _ in range(d)]
@@ -128,33 +131,33 @@ def index_density(n): # n = h21
 
     for d in range(1,n+1):
         #print("Order : ", d)
-        with timer("Construct block list", hide = True):
+        with utils.timer("Construct block list", hide = True):
             block_list_precollection = prelist_from_prev_prelist(block_list)
             #block_print(block_list_precollection)
 
-        with timer("Collect permtuations", hide = True):
+        with utils.timer("Collect permtuations", hide = True):
             block_list_ = collect_permutations(block_list_precollection)
             #block_print(block_list_)
 
-        with timer("Pre-contraction", hide = True):
+        with utils.timer("Pre-contraction", hide = True):
             pre_contr_conn_list = pre_contr_conn(block_list_)
             #block_print(pre_contr_conn_list)
             
-        with timer("External indices contraction", hide = True):
+        with utils.timer("External indices contraction", hide = True):
             ext_contr_conn_list = ext_contr_conn(pre_contr_conn_list)
             #block_print(ext_contr_conn_list)
 
-        with timer("Internal indices contraction", hide = True):
+        with utils.timer("Internal indices contraction", hide = True):
             int_contr_conn_list = int_contr_conn(ext_contr_conn_list, tqdm_hide = (d <= 4))
             #block_print(int_contr_conn_list)
 
-        with timer("Graph construction", hide = True):
+        with utils.timer("Graph construction", hide = True):
             weight_list = contr_conn_to_weight(int_contr_conn_list, tqdm_hide = (d <= 3))
             #block_print(weight_list)
 
-        with timer("Graph isomorphism check", hide = True):
+        with utils.timer("Graph isomorphism check", hide = True):
             #weight_coeff_dict, weight_singular_coeff_dict = coeff_list(weight_list, n, d, tqdm_hide = (d <= 3))
-            weight_coeff_dict = coeff_list(weight_list, n, d, tqdm_hide = (d <= 3))
+            weight_coeff_dict = graph_iso.coeff_list(weight_list, n, d, tqdm_hide = (d <= 3))
 
             #print(weight_coeff_dict)
         
@@ -176,10 +179,10 @@ def index_density(n): # n = h21
 import pickle
 
 if __name__ == "__main__":
-    n = 6
+    n = 4
     rho = index_density(n)
     
-    dict_print(rho)
+    utils.dict_print(rho)
     
-    with open(f"index_cmbn/index_cmbn_{n}.json", "wb") as f:
-        pickle.dump(rho, f)
+    #with open(f"index_cmbn/index_cmbn_{n}.json", "wb") as f:
+        #pickle.dump(rho, f)

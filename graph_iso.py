@@ -25,6 +25,70 @@ def block_coeff(n, d, m, block):
     #return block.pre_coeff * coeff, block.pre_coeff * singular_coeff
     return block.pre_coeff * coeff
 
+def canonical_weight(weight):
+    d = len(weight)
+    if d == 1:
+        return weight 
+    
+    cols, rows = tuple(range(d)), tuple(range(d))
+    best_mat, best_flat = None, None
+
+    row_heur = sorted(rows, key=lambda r: (sum(weight[r]), tuple(sorted(weight[r])))) # heuristic; pruning
+
+    def prefix_cols_for_rows(row_order):
+        k = len(row_order)
+        if k == 0:
+            return cols
+        col_keys = [tuple(weight[r][c] for r in row_order) for c in cols]
+        return tuple(sorted(cols, key=lambda c: col_keys[c]))
+
+    def flat_prefix(row_order, col_order):
+        flat = []
+        for r in row_order:
+            flat.extend(weight[r][c] for c in col_order)
+        return tuple(flat)
+
+    def full_mat_for_rows(row_order):
+        # fixed row order : lexicographically minimal column order wrt.
+        # row-major flattening obtained by sorting columns by their full column vectors
+        col_order = tuple(sorted(cols, key=lambda c: tuple(weight[r][c] for r in row_order)))
+        mat = tuple(tuple(weight[r][c] for c in col_order) for r in row_order)
+        flat = tuple(x for row in mat for x in row)
+        return mat, flat
+
+    def rec(row_order, remaining):
+        nonlocal best_mat, best_flat
+
+        k = len(row_order)
+        if best_flat is not None and k > 0:
+            col_order = prefix_cols_for_rows(row_order)
+            pref = flat_prefix(row_order, col_order)
+            if pref > best_flat[:k * d]:
+                return
+
+        if not remaining:
+            mat, flat = full_mat_for_rows(row_order)
+            if best_flat is None or flat < best_flat:
+                best_mat, best_flat = mat, flat
+            return
+
+        for r in row_heur:
+            if r in remaining:
+                rec(row_order + (r,), tuple(x for x in remaining if x != r))
+
+    rec((), rows)
+    return best_mat
+
+def coeff_list_canon(block_list : list, n : int, d : int, tqdm_hide = False):
+    weight_coeff_dict = {}
+
+    for block in tqdm.tqdm(block_list, bar_format=bar_fmt, desc="Canon.", disable=tqdm_hide):
+        key = tuple(tuple(r) for r in block.cb_ph)
+        canon = canonical_weight(key)
+        coeff = block_coeff(n, d, block.int_points_num, block)
+        weight_coeff_dict[canon] = weight_coeff_dict.get(canon, 0) + coeff
+
+    return weight_coeff_dict
 
 def coeff_list(block_list : list, n : int, d : int, tqdm_hide = False):
     @lru_cache(maxsize = None)
@@ -49,7 +113,7 @@ def coeff_list(block_list : list, n : int, d : int, tqdm_hide = False):
     weight_coeff_dict = dict()
     #weight_singular_coeff_dict = dict()
 
-    for block in tqdm.tqdm(block_list, bar_format = bar_fmt, desc = "graph iso.", disable = tqdm_hide):
+    for block in tqdm.tqdm(block_list, bar_format = bar_fmt, desc = "Graph Iso.", disable = tqdm_hide):
         key = tuple(tuple(r) for r in block.cb_ph)
         graph = _weight_to_graph(key)
         #coeff, singular_coeff = block_coeff(n, d, block.int_points_num, block)
@@ -82,4 +146,5 @@ def coeff_list(block_list : list, n : int, d : int, tqdm_hide = False):
 
     #return weight_coeff_dict, weight_singular_coeff_dict
     return weight_coeff_dict
+
 
