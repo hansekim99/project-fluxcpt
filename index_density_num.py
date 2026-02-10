@@ -1,8 +1,35 @@
 import numpy as np
-import math, scipy
+import math, pickle
 from tqdm import tqdm
 
-# |%%--%%| <YwStxGLPTl|e8noAh2Wcz>
+#|%%--%%| <TW544k8r37|6WU9KONeFg>
+
+from index_density import h_s_to_invariant
+
+def compute_invariant(invariant, specgeo):
+    msno = specgeo.shape[0]
+    total_invariant = np.zeros(msno)
+        
+    for k, v in invariant.items():
+        if k == 0:
+            total_invariant += np.ones(msno) * np.float64(v)
+        else:
+            term_invariant = np.ones(msno) * np.float64(v)
+            for term_str in k:
+                order = (len(term_str) - 2)//10
+                paras = []
+                for _ in range(order):
+                    paras.append(specgeo)
+                    #paras.append(specgeo.real)
+                for _ in range(order):
+                    paras.append(np.conj(specgeo))
+                    #paras.append(specgeo.real)
+                term_invariant = (term_invariant * np.einsum(term_str, *paras)).real
+            total_invariant += term_invariant
+
+    return total_invariant
+
+# |%%--%%| <6WU9KONeFg|TW544k8r37>
 
 class CalabiYau:
     def __init__(self, h21, arrayK, cone_hyperplane = np.array([[1.]]),
@@ -31,7 +58,11 @@ class CalabiYau:
             raw_moduli_im_samples = self.rng.uniform(-self.m_m, self.m_m, size = (self.msno, self.n))
             dist_from_hyperplane = raw_moduli_im_samples @ self.hyperplane.T / (np.linalg.norm(self.hyperplane, axis = 1))
             filter = (dist_from_hyperplane > self.m_c).all(axis = 1)
-            moduli_im_samples = np.vstack((moduli_im_samples, raw_moduli_im_samples[filter]))
+            moduli_im_samples_new = raw_moduli_im_samples[filter]
+            moduli_im_samples = np.vstack((moduli_im_samples, moduli_im_samples_new))
+            
+            self.accepted_n += moduli_im_samples_new.shape[0]
+            self.sampled_n += self.m_m
         
         return moduli_im_samples[1:self.msno+1]
 
@@ -52,38 +83,19 @@ class CalabiYau:
 
         return logdetG_num, specgeo_num.imag * 1j
     
-    def calc_index_vacua_density_cmbn(self, specgeo): # specgeo : single np array (rank 4 array; size : msno x h21 x h21 x h21)
-        scalar_1_r = np.einsum('nabc,nabc->n', specgeo, np.conj(specgeo))
-            
-        scalar_30_03 = scalar_1_r ** 2
-        scalar_21_12 = np.einsum('nabc,ndef,nabd,ncef->n', specgeo, specgeo, np.conj(specgeo), np.conj(specgeo))
-        
-        scalar_2_r = 1/2 * scalar_30_03 - 1/2 * scalar_21_12
-
-        scalar_300_030_003 = scalar_1_r ** 3
-        scalar_300_021_012 = scalar_1_r * scalar_21_12
-        scalar_210_021_102 = np.einsum('nabc,ndef,nghl,ndbc,ngef,nahl->n', specgeo, specgeo, specgeo, np.conj(specgeo), np.conj(specgeo), np.conj(specgeo))
-        scalar_210_111_012 = np.einsum('nabc,ndef,nghl,nabd,nceg,nfhl->n', specgeo, specgeo, specgeo, np.conj(specgeo), np.conj(specgeo), np.conj(specgeo))
-        scalar_111_111_111 = np.einsum('nabc,ndef,nghl,ngbf,nael,ndhc->n', specgeo, specgeo, specgeo, np.conj(specgeo), np.conj(specgeo), np.conj(specgeo))
-        
-        scalar_3_r = - 1/6 * scalar_300_030_003 + 1/2 * scalar_300_021_012 - scalar_210_021_102 + scalar_210_111_012 - 1/3 * scalar_111_111_111
-
-        #scalar = 2 - scalar_1_r
-        #scalar = 4 - 2 * scalar_1_r + scalar_2_r
-        scalar = 12 - 4 * scalar_1_r + 2 * scalar_2_r + scalar_3_r
-        index_vacua_density = scalar * np.pi**(-(self.n+1))
-
-        return index_vacua_density # single np array (rank 1 array; size : msno)
-    
     def uniform_eval(self, mrl = False): # type : flux or cmbn
         moduli_distr = []
         weighted_ind_vac_den_distr = []
+        self.accepted_n, self.sampled_n = 0, 0
+
+        invariant = h_s_to_invariant(self.n)
 
         for _ in tqdm(range(self.mrno), disable = not mrl):
             ms_uniform = self._moduli_uniform_sample() # change for new sampling
             logdetG, specgeo = self._ms_num(ms_uniform)
             
-            index_vacua_density = self.calc_index_vacua_density_cmbn(specgeo)
+            scalar = compute_invariant(invariant, specgeo)
+            index_vacua_density = scalar * np.pi**(-(self.n+1))
             
             weighted_ind_vac_den = index_vacua_density * np.exp(logdetG)
 

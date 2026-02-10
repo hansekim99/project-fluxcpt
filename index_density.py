@@ -110,15 +110,94 @@ def index_density(n):
 
     return weight_coeff_dict_total
 
-#|%%--%%| <dq53fCWSkj|Z7nH6cC0Qp>
+#|%%--%%| <dq53fCWSkj|MNbnT2PYKr>
 
-import pickle
+import numpy as np 
+import pickle, string
+
+def partition(A):
+    A = np.asarray(A)
+    n = A.shape[0]
+    seen_r, seen_c = np.zeros(n, bool), np.zeros(n, bool)
+    out = []
+
+    for r0 in range(n):
+        if seen_r[r0]: 
+            continue
+        R, C = [], []
+        stack = [('r', r0)]
+        seen_r[r0] = True
+
+        while stack:
+            side, k = stack.pop()
+            if side == 'r':
+                R.append(k)
+                for j in np.flatnonzero(A[k] > 0):
+                    if not seen_c[j]:
+                        seen_c[j] = True
+                        stack.append(('c', j))
+            else:
+                C.append(k)
+                for i in np.flatnonzero(A[:, k] > 0):
+                    if not seen_r[i]:
+                        seen_r[i] = True
+                        stack.append(('r', i))
+        out.append(A[np.ix_(sorted(R), sorted(C))])
+    return out
+
+def block_to_str(block):
+    m = block.shape[0]
+    assert block.ndim == 2 and block.shape[1] == m
+
+    letters = iter(string.ascii_lowercase) #+ string.ascii_uppercase)
+    L = [[] for _ in range(m)]
+    R = [[] for _ in range(m)]
+
+    for i in range(m):
+        for j in range(m):
+            k = block[i, j]
+            labs = [next(letters) for _ in range(k)]
+            L[i].extend(labs)
+            R[j].extend(labs)
+
+    def term(idx_list):
+        core = ''.join(idx_list)
+        return ('Z' + core)
+
+    ins = [term(L[i]) for i in range(m)] + [term(R[j]) for j in range(m)]
+    return ','.join(ins) + '->Z'
+
+def h_s_to_invariant(h_s):
+    with open(f"index_cmbn/index_cmbn_{h_s}.json", "rb") as f:
+        rho = pickle.load(f)
+
+    tot_str = dict()
+
+    for k, v in rho.items():
+        if v == 0:
+            continue
+        elif k == 0:
+            tot_str[0] = v 
+            continue
+        else:
+            invariant_blocks = partition(k)
+            invariant_str = []
+            for block in invariant_blocks:
+                invariant_str.append(block_to_str(block))
+            tot_str[tuple(invariant_str)] = v
+
+    return tot_str
+
+#|%%--%%| <MNbnT2PYKr|XhZdbuJo7u>
 
 if __name__ == "__main__":
-    h_s = 6
-    rho = index_density(h_s)
+    h_s = 3
+    #rho = index_density(h_s)
     
-    utils.dict_print(rho)
+    #utils.dict_print(rho)
 
-    with open(f"index_cmbn/index_cmbn_{h_s}.json", "wb") as f:
-        pickle.dump(rho, f)
+    #with open(f"index_cmbn/index_cmbn_{h_s}.json", "wb") as f:
+    #    pickle.dump(rho, f)
+    
+    tot_str = h_s_to_invariant(h_s)
+    print(tot_str)

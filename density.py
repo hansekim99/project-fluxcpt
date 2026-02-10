@@ -28,7 +28,7 @@ def cyobj(p):
     
     cy_obj = idn.CalabiYau(h21, arrayK, cone_hyperplane,
                    moduli_max = 10, moduli_cutoff = 1, qd3 = 50,
-                   moduli_sample_no = int(5e6))
+                   moduli_sample_no = int(1e4))
 
     return cy_obj
 
