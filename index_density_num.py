@@ -41,11 +41,62 @@ class CalabiYau:
 
         self.m_m, self.m_c = moduli_max, moduli_cutoff
 
-        self.msno = int(1e1)                          # size of paralellised calculations
+        self.msno = int(1e2)                          # size of paralellised calculations
         self.mrno = int(moduli_sample_no / self.msno) # size of for loop
 
         self.rng = np.random.default_rng()
+
+    def volume_uniform(self):
+        raw = self.rng.uniform(-self.m_m, self.m_m, size=(self.msno*self.mrno, self.n))
+        ok = (raw @ self.hplane_n > self.m_c).all(axis=1)
+        return (2*self.m_m)**self.n * ok.mean()
     
+    def _hr_seed_point(self):
+        while True:
+            x = self.rng.uniform(-self.m_m, self.m_m, size=self.n)
+            if (x @ self.hplane_n > self.m_c).all():
+                return x
+
+    def _moduli_hitandrun_sample(self, thin=1, eps=1e-14):
+        M, c, H = float(self.m_m), float(self.m_c), self.hplane_n  # H: (n, L)
+        x = getattr(self, "_hr_x", None)
+        if x is None:
+            x = self._hr_seed_point()
+
+        out = np.empty((self.msno, self.n), dtype=np.float64)
+
+        for k in range(self.msno):
+            for _ in range(thin):
+                while True:
+                    d = self.rng.normal(size=self.n)
+                    d /= np.linalg.norm(d)
+
+                    # box chord: -M <= x + t d <= M
+                    lo = np.where(d > 0, (-M - x) / d, np.where(d < 0, ( M - x) / d, -np.inf))
+                    hi = np.where(d > 0, ( M - x) / d, np.where(d < 0, (-M - x) / d,  np.inf))
+                    t_lo, t_hi = lo.max(), hi.min()
+
+                    # halfspaces: (x + t d)·h_j > c
+                    a = d @ H
+                    b = x @ H
+                    z = np.abs(a) < 1e-15
+                    if np.any(z & (b <= c + eps)):
+                        continue
+
+                    pos = a >  1e-15
+                    neg = a < -1e-15
+                    if np.any(pos):
+                        t_lo = max(t_lo, np.max((c + eps - b[pos]) / a[pos]))
+                    if np.any(neg):
+                        t_hi = min(t_hi, np.min((c + eps - b[neg]) / a[neg]))
+
+                    if t_hi > t_lo:
+                        x = x + self.rng.uniform(t_lo, t_hi) * d
+                        break
+            out[k] = x
+        self._hr_x = x
+        return out
+
     def _moduli_uniform_sample(self):
         # rejection sampling within the kahler cone
         # for each choice of n-1 rays, obtain one hyperplane
@@ -62,9 +113,6 @@ class CalabiYau:
             k = min(moduli_im_samples_new.shape[0], self.msno - filled)
             moduli_im_samples[filled:filled+k] = moduli_im_samples_new[:k]
             filled += k
-            
-            self.accepted_n += moduli_im_samples_new.shape[0]
-            self.sampled_n += self.msno
         
         return moduli_im_samples
 
@@ -93,7 +141,8 @@ class CalabiYau:
         invariant = h_s_to_invariant(self.n)
 
         for _ in tqdm(range(self.mrno), disable = not mrl):
-            ms_uniform = self._moduli_uniform_sample()
+            #ms_uniform = self._moduli_uniform_sample()
+            ms_uniform = self._moduli_hitandrun_sample()
 
             logdetG, specgeo = self._ms_num(ms_uniform)
             
@@ -119,11 +168,16 @@ class CalabiYau:
         return np.array(moduli_distr), np.array(integrand_distr)
 
     def uniform_integrate(self, scalar_distr):
-        averaged_scalar = np.mean(scalar_distr)
-        
-        volume_uniform = (2*self.m_m)**self.n * self.accepted_n/self.sampled_n
+        batch_means = scalar_distr.mean(axis=1)
+        scalar_mean = batch_means.mean()
+        scalar_se  = batch_means.std(ddof=1) / np.sqrt(batch_means.size)
 
         prefactor = (2*np.pi) ** (2*(self.n+1)) / math.factorial(2*(self.n+1))
         axiodilaton = np.pi / 12
 
-        return averaged_scalar * prefactor * axiodilaton * volume_uniform
+        const = prefactor * axiodilaton * self.volume_uniform()
+
+        integ = const * scalar_mean
+        integ_se = const * scalar_se
+
+        return integ, integ_se

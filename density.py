@@ -11,15 +11,17 @@ reload(idn)
 # |%%--%%| <Jn6Ef3is6D|yYbCQ6fuay>
 
 h_s = 2
-#p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-h_s_polytope = fetch_polytopes(h11 = h_s, lattice = "N", limit = 100)
+p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+#h_s_polytope = fetch_polytopes(h11 = h_s, lattice = "N", limit = 100)
 
-l = len(h_s_polytope)
+#l = len(h_s_polytope)
 
 #|%%--%%| <yYbCQ6fuay|qPUnwXUxOI>
 
-for i in range(l):
-    p = h_s_polytope[i]
+moduli_max = 10
+
+for i in range(1):
+    #p = h_s_polytope[i]
     cy = p.triangulate().get_cy()
     dictK = cy.intersection_numbers(in_basis = True)
     print(dictK)
@@ -30,10 +32,10 @@ for i in range(l):
     arrayK = np.array([[[dictK.get(tuple(sorted((i,j,k))), 0) for i in range(h_s)] for j in range(h_s)] for k in range(h_s)])
     
     cy_obj = idn.CalabiYau(h_s, arrayK, cone_hyperplane,
-                   moduli_max = 10, moduli_cutoff = 1,
-                   moduli_sample_no = int(5e3))
+                   moduli_max, moduli_cutoff = 1,
+                   moduli_sample_no = int(1e4) * moduli_max ** h_s)
     
     _, udv_cmbn = cy_obj.uniform_eval(mrl = True)
-    usv_cmbn = cy_obj.uniform_integrate(udv_cmbn)
+    usv_cmbn, usv_se = cy_obj.uniform_integrate(udv_cmbn)
 
-    print(usv_cmbn)
+    print(usv_cmbn, usv_se)
