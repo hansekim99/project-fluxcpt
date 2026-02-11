@@ -33,15 +33,13 @@ def compute_invariant(invariant, specgeo):
 
 class CalabiYau:
     def __init__(self, h21, arrayK, cone_hyperplane = np.array([[1.]]),
-                moduli_max = 10, moduli_cutoff = 1, qd3 = 10,
+                moduli_max = 10, moduli_cutoff = 1,
                 moduli_sample_no = int(5e6)):
         self.n = h21
         self.arrayK = arrayK
-        self.hyperplane = cone_hyperplane
+        self.hplane_n = cone_hyperplane.T / (np.linalg.norm(cone_hyperplane, axis = 1))
 
         self.m_m, self.m_c = moduli_max, moduli_cutoff
-        
-        self.qd3 = qd3
 
         self.msno = int(1e1)                          # size of paralellised calculations
         self.mrno = int(moduli_sample_no / self.msno) # size of for loop
@@ -53,12 +51,11 @@ class CalabiYau:
         # for each choice of n-1 rays, obtain one hyperplane
 
         moduli_im_samples = np.empty((self.msno, self.n))
-        n_hplane = self.hyperplane.T / (np.linalg.norm(self.hyperplane, axis = 1))
         filled = 0
         
         while filled < self.msno:
             raw_moduli_im_samples = self.rng.uniform(-self.m_m, self.m_m, size = (self.msno, self.n))
-            dist_from_hyperplane = raw_moduli_im_samples @ n_hplane
+            dist_from_hyperplane = raw_moduli_im_samples @ self.hplane_n
             filter = (dist_from_hyperplane > self.m_c).all(axis = 1)
             moduli_im_samples_new = raw_moduli_im_samples[filter]
 
@@ -90,27 +87,36 @@ class CalabiYau:
     
     def uniform_eval(self, mrl = False):
         moduli_distr = []
-        weighted_ind_vac_den_distr = []
+        integrand_distr = []
         self.accepted_n, self.sampled_n = 0, 0
 
         invariant = h_s_to_invariant(self.n)
 
         for _ in tqdm(range(self.mrno), disable = not mrl):
             ms_uniform = self._moduli_uniform_sample()
+
             logdetG, specgeo = self._ms_num(ms_uniform)
             
             scalar = compute_invariant(invariant, specgeo)
             index_vacua_density = scalar * np.pi**(-(self.n+1))
             
-            weighted_ind_vac_den = index_vacua_density * np.exp(logdetG)
+            integrand_surface = index_vacua_density * np.exp(logdetG)
+            
+            #dist_at_cutoff = self.m_c * np.linalg.norm(ms_uniform,axis=1) / (np.min(ms_uniform @ self.hplane_n, axis = 1))
+            dist_at_cutoff = self.m_c * np.linalg.norm(ms_uniform,axis=1) / (np.min(ms_uniform @ self.hplane_n, axis = 1))
+            r_b, r_a = np.linalg.norm(ms_uniform,axis=1), dist_at_cutoff
+            r_max = self.m_m * r_b / np.max(np.abs(ms_uniform), axis=1)
+
+            g_u = integrand_surface * (r_b ** (2 * self.n))
+            #integrand = integrand_surface * 1/(-2*self.n+1) * (1-(r_a/r_b)**(-2*self.n+1))
+            integrand = g_u * (r_a**(-self.n) - r_max**(-self.n)) / (r_max**(self.n) - r_a**(self.n))
+
+            #integrand = integrand_surface
 
             moduli_distr.append(ms_uniform)
-            weighted_ind_vac_den_distr.append(weighted_ind_vac_den)
-        
-        moduli_distr = np.array(moduli_distr)
-        weighted_ind_vac_den_distr = np.array(weighted_ind_vac_den_distr)
-
-        return moduli_distr, weighted_ind_vac_den_distr
+            integrand_distr.append(integrand)
+                    
+        return np.array(moduli_distr), np.array(integrand_distr)
 
     def uniform_integrate(self, scalar_distr):
         averaged_scalar = np.mean(scalar_distr)

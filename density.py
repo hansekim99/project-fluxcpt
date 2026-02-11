@@ -30,8 +30,8 @@ for i in range(l):
     arrayK = np.array([[[dictK.get(tuple(sorted((i,j,k))), 0) for i in range(h_s)] for j in range(h_s)] for k in range(h_s)])
     
     cy_obj = idn.CalabiYau(h_s, arrayK, cone_hyperplane,
-                   moduli_max = 10, moduli_cutoff = 1, qd3 = 50,
-                   moduli_sample_no = int(5e5))
+                   moduli_max = 10, moduli_cutoff = 1,
+                   moduli_sample_no = int(5e3))
     
     _, udv_cmbn = cy_obj.uniform_eval(mrl = True)
     usv_cmbn = cy_obj.uniform_integrate(udv_cmbn)
