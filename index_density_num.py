@@ -1,5 +1,5 @@
 import numpy as np
-import math, pickle
+import math
 from tqdm import tqdm
 
 #|%%--%%| <TW544k8r37|6WU9KONeFg>
@@ -52,19 +52,24 @@ class CalabiYau:
         # rejection sampling within the kahler cone
         # for each choice of n-1 rays, obtain one hyperplane
 
-        moduli_im_samples = np.empty_like([[1,1]])
+        moduli_im_samples = np.empty((self.msno, self.n))
+        n_hplane = self.hyperplane.T / (np.linalg.norm(self.hyperplane, axis = 1))
+        filled = 0
         
-        while moduli_im_samples.shape[0] < self.msno+1:
+        while filled < self.msno:
             raw_moduli_im_samples = self.rng.uniform(-self.m_m, self.m_m, size = (self.msno, self.n))
-            dist_from_hyperplane = raw_moduli_im_samples @ self.hyperplane.T / (np.linalg.norm(self.hyperplane, axis = 1))
+            dist_from_hyperplane = raw_moduli_im_samples @ n_hplane
             filter = (dist_from_hyperplane > self.m_c).all(axis = 1)
             moduli_im_samples_new = raw_moduli_im_samples[filter]
-            moduli_im_samples = np.vstack((moduli_im_samples, moduli_im_samples_new))
+
+            k = min(moduli_im_samples_new.shape[0], self.msno - filled)
+            moduli_im_samples[filled:filled+k] = moduli_im_samples_new[:k]
+            filled += k
             
             self.accepted_n += moduli_im_samples_new.shape[0]
-            self.sampled_n += self.m_m
+            self.sampled_n += self.msno
         
-        return moduli_im_samples[1:self.msno+1]
+        return moduli_im_samples
 
     def _ms_num(self, ms):
         polyK = 1/6 * np.einsum('abc,na,nb,nc->n', self.arrayK, ms, ms, ms)
@@ -83,7 +88,7 @@ class CalabiYau:
 
         return logdetG_num, specgeo_num.imag * 1j
     
-    def uniform_eval(self, mrl = False): # type : flux or cmbn
+    def uniform_eval(self, mrl = False):
         moduli_distr = []
         weighted_ind_vac_den_distr = []
         self.accepted_n, self.sampled_n = 0, 0
@@ -91,7 +96,7 @@ class CalabiYau:
         invariant = h_s_to_invariant(self.n)
 
         for _ in tqdm(range(self.mrno), disable = not mrl):
-            ms_uniform = self._moduli_uniform_sample() # change for new sampling
+            ms_uniform = self._moduli_uniform_sample()
             logdetG, specgeo = self._ms_num(ms_uniform)
             
             scalar = compute_invariant(invariant, specgeo)
@@ -107,12 +112,12 @@ class CalabiYau:
 
         return moduli_distr, weighted_ind_vac_den_distr
 
-    def uniform_integrate(self, scalar_distr, mrl = False):
+    def uniform_integrate(self, scalar_distr):
         averaged_scalar = np.mean(scalar_distr)
         
-        #volume_uniform = (self.mi[1] - self.mi[0]) ** self.n * np.linalg.det(self.kahler_rays) # change for new sampling
+        volume_uniform = (2*self.m_m)**self.n * self.accepted_n/self.sampled_n
 
         prefactor = (2*np.pi) ** (2*(self.n+1)) / math.factorial(2*(self.n+1))
         axiodilaton = np.pi / 12
 
-        return averaged_scalar * prefactor * axiodilaton #* volume_uniform
+        return averaged_scalar * prefactor * axiodilaton * volume_uniform

@@ -8,47 +8,32 @@ from importlib import reload
 import index_density_num as idn
 reload(idn)
 
-# |%%--%%| <Jn6Ef3is6D|Rd7f0EjWS0>
+# |%%--%%| <Jn6Ef3is6D|yYbCQ6fuay>
 
-h21 = 2
+h_s = 2
 #p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-h21_polytope = fetch_polytopes(h11 = h21, lattice = "N", limit = 100)
+h_s_polytope = fetch_polytopes(h11 = h_s, lattice = "N", limit = 100)
 
-# |%%--%%| <Rd7f0EjWS0|vNxZpeMhoy>
+l = len(h_s_polytope)
 
-def cyobj(p):
-    #print(p)
+#|%%--%%| <yYbCQ6fuay|qPUnwXUxOI>
+
+for i in range(l):
+    p = h_s_polytope[i]
     cy = p.triangulate().get_cy()
     dictK = cy.intersection_numbers(in_basis = True)
     print(dictK)
     
-    #print(cy.toric_mori_cone(in_basis = True).extremal_rays())
-    cone_hyperplane = cy.toric_mori_cone(in_basis = True).extremal_hyperplanes()
-    arrayK = np.array([[[dictK.get(tuple(sorted((i,j,k))), 0) for i in range(h21)] for j in range(h21)] for k in range(h21)])
+    cone_hyperplane = cy.toric_mori_cone(in_basis = True).extremal_rays()
+    #print('kahler rays : \n', cy.toric_kahler_cone().extremal_rays())
+    #print('kahler planes : \n', cy.toric_mori_cone(in_basis = True).extremal_rays())
+    arrayK = np.array([[[dictK.get(tuple(sorted((i,j,k))), 0) for i in range(h_s)] for j in range(h_s)] for k in range(h_s)])
     
-    cy_obj = idn.CalabiYau(h21, arrayK, cone_hyperplane,
+    cy_obj = idn.CalabiYau(h_s, arrayK, cone_hyperplane,
                    moduli_max = 10, moduli_cutoff = 1, qd3 = 50,
-                   moduli_sample_no = int(1e4))
-
-    return cy_obj
-
-def index_density(cy_obj):
+                   moduli_sample_no = int(5e5))
+    
     _, udv_cmbn = cy_obj.uniform_eval(mrl = True)
     usv_cmbn = cy_obj.uniform_integrate(udv_cmbn)
 
-    return usv_cmbn
-
-# |%%--%%| <vNxZpeMhoy|kDkRakQzl4>
-
-l = len(h21_polytope)
-
-for i in range(1):
-    p = h21_polytope[i]
-    cy_obj = cyobj(p)
-
-    #cy_obj._moduli_uniform_sample()
-
-    print(index_density(cy_obj))
-    #cy = p.triangulate().get_cy()
-
-    #print(cy.h21())
+    print(usv_cmbn)
