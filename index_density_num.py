@@ -34,14 +34,14 @@ def compute_invariant(invariant, specgeo):
 class CalabiYau:
     def __init__(self, h21, arrayK, cone_hyperplane = np.array([[1.]]),
                 moduli_max = 10, moduli_cutoff = 1,
-                moduli_sample_no = int(5e6)):
+                moduli_sample_no = int(5e6), moduli_batch_no = int(1e2)):
         self.n = h21
         self.arrayK = arrayK
         self.hplane_n = cone_hyperplane.T / (np.linalg.norm(cone_hyperplane, axis = 1))
 
         self.m_m, self.m_c = moduli_max, moduli_cutoff
 
-        self.msno = int(1e2)                          # size of paralellised calculations
+        self.msno = moduli_batch_no                          # size of paralellised calculations
         self.mrno = int(moduli_sample_no / self.msno) # size of for loop
 
         self.rng = np.random.default_rng()

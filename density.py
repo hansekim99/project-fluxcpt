@@ -10,18 +10,18 @@ reload(idn)
 
 # |%%--%%| <Jn6Ef3is6D|yYbCQ6fuay>
 
-h_s = 2
-p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-#h_s_polytope = fetch_polytopes(h11 = h_s, lattice = "N", limit = 100)
+h_s = 3
+#p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+h_s_polytope = fetch_polytopes(h11 = h_s, lattice = "N", limit = 100)
 
-#l = len(h_s_polytope)
+l = len(h_s_polytope)
 
 #|%%--%%| <yYbCQ6fuay|qPUnwXUxOI>
 
 moduli_max = 10
 
-for i in range(1):
-    #p = h_s_polytope[i]
+for i in range(3):
+    p = h_s_polytope[i]
     cy = p.triangulate().get_cy()
     dictK = cy.intersection_numbers(in_basis = True)
     print(dictK)
