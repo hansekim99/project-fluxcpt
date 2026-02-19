@@ -40,7 +40,7 @@ h_s_polytope = fetch_polytopes(h11 = h_s, lattice = "N", limit = 100)
 #|%%--%%| <tYtbezb5mg|V89gww5Oac>
 
 import matplotlib.pyplot as plt
-import index_density_num as idn
+import num_index_density as idn
 
 moduli_max = 5
 degree_max = 30
@@ -49,7 +49,7 @@ radial_moduli_sample = 50
 
 if __name__ == "__main__":
     #rho = index_density(h_s)
-    p = h_s_polytope[5]
+    p = h_s_polytope[7]
     cy = p.triangulate().get_cy()
     dictK = cy.intersection_numbers(in_basis = True)
     print(dictK)
