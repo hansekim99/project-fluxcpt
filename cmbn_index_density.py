@@ -168,7 +168,7 @@ def block_to_str(block):
     return ','.join(ins) + '->Z'
 
 def h_s_to_invariant(h_s):
-    with open(f"index_cmbn/index_cmbn_{h_s}.json", "rb") as f:
+    with open(f"data/cmbn_index/index_cmbn_{h_s}.json", "rb") as f:
         rho = pickle.load(f)
 
     tot_str = dict()
@@ -196,7 +196,7 @@ if __name__ == "__main__":
     
     #cmbn_utils.dict_print(rho)
 
-    #with open(f"index_cmbn/index_cmbn_{h_s}.json", "wb") as f:
+    #with open(f"data/cmbn_index/index_cmbn_{h_s}.json", "wb") as f:
     #    pickle.dump(rho, f)
     
     tot_str = h_s_to_invariant(h_s)

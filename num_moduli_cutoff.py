@@ -2,34 +2,78 @@ import numpy as np
 #Enable unfavourable CYs
 #cytools.config.enable_experimental_features()
 from cytools import fetch_polytopes, Polytope
+from tqdm import tqdm
 
 # |%%--%%| <Jn6Ef3is6D|hPiCUWr4nw>
 
-def partition(d, n):
-    if d == 1:
-        yield (n,)
-        return
-    for k in range(n + 1):
-        for rest in partition(d - 1, n - k):
-            yield (k,) + rest
+# given a sample of moduli, evaluate the closest relatively coprime integer
+def coprime_integer_scaling(moduli, tol = 1e-2, denom_max = 100):
+    err = np.ones_like(moduli)
+    coprime_int = np.ones_like(moduli)
 
-# given a sample of moduli, evaluate the instanton correction at a fixed degree (given gv invariants and maximum degree) along 
-def instanton_ev(moduli, kahler_rays, gv, deg):
-    h_s = moduli.shape[1]
-    final = np.zeros(moduli.shape[0])
-    #print(gv)
-    for nums in partition(h_s, deg): # not all partitions are considered?
-        qv = kahler_rays.T @ nums
-        try:
-            nq = gv[tuple(qv)]
-            #print(qv, nq)
-        except:
-            continue
-        instanton = np.exp(-2 * np.pi * (moduli @ qv))
-        final += instanton * nq
-        #print(instanton[:10], nq, final[:10])
+    i = 2
+    updated = np.zeros((moduli.shape[0])).astype(bool)
 
+    while i <= denom_max and not np.all(updated):
+        mi = moduli[~updated] * i
+        ri = np.round(mi)
+        err = np.abs(mi - ri)
+
+        filter = np.all(err < tol, axis=1)
+        if np.any(filter):
+            rows = np.where(~updated)[0][filter]
+            coprime_int[rows] = ri[filter]
+            updated[rows] = True
+
+        i += 1
+    
+    coprime_int[~updated] = np.round(moduli[~updated] * denom_max)
+    nonzero = ~np.any(coprime_int == 0, axis = 1)
+    coprime_int = coprime_int[nonzero, :].astype(int)
+
+    return coprime_int
+
+# given a dict of gv coeffs, and a moduli point compute instanton correction
+def instanton_ev(moduli, gv_d):
+    final = 0
+    for qv, gv in gv_d.dok.items():
+        final += gv * np.exp(-2*np.pi*(qv @ moduli))
     return final
+
+# 
+def rays_multiple(rays, vector):
+    for ray in rays:
+        if np.std(ray/vector) == 0:
+            return True 
+    return False
+
+# given a sample of moduli, evalute the scaling where the instanton correction upto specified degree is less than specified cutoff
+def cutoff_ev(moduli, p, min_points = int(2e1), cutoff = 1, tol = 1e-2, max_trials = 100):
+    cy = p.triangulate().get_cy()
+    rays = cy.toric_kahler_cone().extremal_rays()
+
+    coprime_ints = coprime_integer_scaling(moduli)
+    scaled_moduli = np.zeros_like(moduli)
+    
+    for i in tqdm(range(coprime_ints.shape[0])):
+        #print(cy.toric_kahler_cone().contains(coprime_ints[i]))
+        if rays_multiple(rays, coprime_ints[i]):
+            continue
+        print(coprime_ints[i])
+        gvs = cy.compute_gvs(min_points = min_points, grading_vec = coprime_ints[i])
+        #l_i = 1/(2*np.pi) * np.log(sum(gvs.dok.values()))
+        l_i = 1
+        l_curr, iev = l_i, instanton_ev(moduli[i] * l_i, gvs)
+        trials = l_i
+        while np.abs(iev - cutoff) > tol and trials < max_trials:
+            iev = instanton_ev(moduli[i] * l_curr, gvs)
+            l_del = np.clip((iev-cutoff),-(1.1)**(trials-1), (1.1)**(trials-1)) * l_curr * (1.1)**(-trials)
+            l_curr += l_del
+            trials += 1
+        
+        scaled_moduli[i] = moduli[i] * l_curr
+        
+    return scaled_moduli
 
 #|%%--%%| <hPiCUWr4nw|tYtbezb5mg>
 
@@ -37,64 +81,37 @@ h_s = 2
 #p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
 h_s_polytope = fetch_polytopes(h11 = h_s, lattice = "N", limit = 100)
 
-#|%%--%%| <tYtbezb5mg|V89gww5Oac>
+#|%%--%%| <tYtbezb5mg|lyY5tUZStl>
 
 import matplotlib.pyplot as plt
 import num_index_density as idn
-
-moduli_max = 5
-degree_max = 30
-
-radial_moduli_sample = 50
+import pickle
 
 if __name__ == "__main__":
     #rho = index_density(h_s)
-    p = h_s_polytope[7]
-    cy = p.triangulate().get_cy()
-    dictK = cy.intersection_numbers(in_basis = True)
-    print(dictK)
+    moduli_max = 5
+    cutoff = 1
+    total_moduli = int(1e3)
     
-    cone_hyperplane = cy.toric_mori_cone(in_basis = True).extremal_rays() # kahler rays
-    print(cy.toric_kahler_cone().extremal_rays())
-    arrayK = np.array([[[dictK.get(tuple(sorted((i,j,k))), 0) for i in range(h_s)] for j in range(h_s)] for k in range(h_s)])
-    
-    cy_obj = idn.CalabiYau(h_s, arrayK, cone_hyperplane,
-                   moduli_max, moduli_cutoff = 0,
-                   moduli_sample_no = int(1e4) * moduli_max ** h_s, moduli_batch_no = int(1e4))
+    for i in range(3,len(h_s_polytope)):
+        p = h_s_polytope[i]
+        rays = p.triangulate().get_cy().toric_kahler_cone().extremal_rays()
+        
+        cy_obj = idn.CalabiYau(p, moduli_max = moduli_max,
+                               moduli_sample_factor = int(1), moduli_batch_no = total_moduli)
 
-    # 1 or 2 for cy sampling, 3 for sampling entire circle
-    moduli_sample = cy_obj._moduli_hitandrun_sample()
-    #moduli_sample = cy_obj._moduli_uniform_sample()
-    #moduli_sample = np.column_stack((np.cos(2*np.pi*np.linspace(0,1,radial_moduli_sample)), np.sin(2*np.pi*np.linspace(0,1,radial_moduli_sample)))) * moduli_max
+        moduli = cy_obj._moduli_projection_sample()
 
-    # 1 for radial sampling near origin, 2 for uniform sampling
-    #moduli_sample_long = np.tensordot(moduli_sample, 1/np.linspace(1,radial_moduli_sample,radial_moduli_sample),axes=0).transpose(0,2,1).reshape(-1,h_s)
-    moduli_sample_long = np.tensordot(moduli_sample, np.linspace(1/radial_moduli_sample,1,radial_moduli_sample),axes=0).transpose(0,2,1).reshape(-1,h_s)
+        scaled_moduli = cutoff_ev(moduli, p, cutoff = 1)
+        
+        with open(f"data/num_moduli_cutoff/num_moduli_cutoff={cutoff}_mm={moduli_max}_tm={total_moduli*10}_hs={h_s}_ind={i}.json", "wb") as f:
+            pickle.dump(scaled_moduli, f)
 
-    gv = cy.compute_gv(max_deg = degree_max)
+        plt.close()
+        plt.scatter(scaled_moduli[:,0], scaled_moduli[:,1], s = 1)
+        plt.xlim((-5, 5))
+        plt.ylim((-5, 5))
+        plt.plot([0,5*rays[0,0]], [0,5*rays[0,1]], color = "red")
+        plt.plot([0,5*rays[1,0]], [0,5*rays[1,1]], color = "red")
 
-    instanton = instanton_ev(moduli_sample_long, kahler_rays = cone_hyperplane, 
-                             gv = gv.dok, deg = degree_max)
-    
-    m = np.isfinite(np.log(np.abs(instanton)))
-
-    # 1 for h_s = 2, 2 for h_s = 1
-    x, y, z = moduli_sample_long[:,0][m], moduli_sample_long[:,1][m], np.log(np.abs(instanton))[m]
-    #x, z = moduli_sample_long[:,0][m], np.log(instanton)[m]
-    #y = np.ones_like(x)
-
-    plt.figure()
-    # 1 for contour map, 2 for colour map
-    cs = plt.tricontour(x, y, z, levels=20)
-    plt.clabel(cs, inline=True, fontsize=8)
-    #cs = plt.scatter(x, y, c=z, s=8)
-    plt.colorbar(cs, label=f"sum_q N_q exp(-2 pi q * (t_1, t_2))for q degree = {degree_max}")
-    plt.xlabel("t_1 = Im(z_1)")
-    plt.ylabel("t_2 = Im(z_2)")
-    plt.title(dictK)
-    plt.tight_layout()
-
-    plt.xlim(-moduli_max,moduli_max)
-    plt.ylim(-moduli_max,moduli_max)
-
-    plt.show()
+        plt.savefig(f"figures/num_moduli_cutoff={cutoff}_mm={moduli_max}_tm={total_moduli*10}_hs={h_s}_ind={i}")
