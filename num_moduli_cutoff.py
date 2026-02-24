@@ -134,7 +134,7 @@ if __name__ == "__main__":
 
         scaled_moduli = cutoff_ev(n1_moduli, p, cutoff = 1)
         
-        with open(f"data/num_moduli_cutoff/num_moduli_cutoff={cutoff}_mm={moduli_max}_tm={total_moduli*10}_hs={h_s}_ind={i}_1.json", "wb") as f:
+        with open(f"data/num_moduli_cutoff/num_moduli_cutoff={cutoff}_mm={moduli_max}_tm={total_moduli*10}_hs={h_s}_ind={i}.json", "wb") as f:
             pickle.dump(scaled_moduli, f)
 
         plt.close()
