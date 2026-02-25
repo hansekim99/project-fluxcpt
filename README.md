@@ -5,3 +5,5 @@ Computation of statistics of flux vacua in compactified Type IIB theories.
     - cmbn_graph_iso : functions related to graph isomorphism used in cmbn_index_density.
     - cmbn_utils : miscellaneous functions used in cmbn_index_density.
 - num_index_density : samples moduli inside the Kahler cone, numerically evaluates the index density, and integrates using an appropriate Jacobian.
+- num_moduli_cutoff : based on random sampling inside the kahler cone, find scaled points where the instanton correction is less than a cutoff
+    - num_moduli_cutoff_check : check exponential decay of instanton correction terms for specified points within moduli space

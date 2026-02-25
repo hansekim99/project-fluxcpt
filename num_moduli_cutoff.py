@@ -85,6 +85,7 @@ def cutoff_ev(moduli, p, min_points = int(2e1), cutoff = 1, tol = 1e-3, max_tria
                 l_lo /= 2.0
                 iev_lo = inst(l_lo)
         
+        #print(f"lo : {moduli[i] * l_lo}, hi : {moduli[i] * l_hi}")
         for _ in range(max_trials):
             l_mid = 0.5 * (l_lo + l_hi)
             iev_mid = inst(l_mid)
@@ -99,6 +100,7 @@ def cutoff_ev(moduli, p, min_points = int(2e1), cutoff = 1, tol = 1e-3, max_tria
                 l_hi = l_mid
 
             l_curr = l_hi
+            #print(l_curr * moduli[i])
         
         scaled_moduli[i] = moduli[i] * l_curr
         
@@ -122,26 +124,31 @@ if __name__ == "__main__":
     cutoff = 1
     total_moduli = int(1e3)
     
-    for i in range(len(h_s_polytope)):
+    #for i in range(len(h_s_polytope)):
+    for i in range(13,14):
         p = h_s_polytope[i]
         rays = p.triangulate().get_cy().toric_kahler_cone().extremal_rays()
         
         cy_obj = idn.CalabiYau(p, moduli_max = moduli_max,
                                moduli_sample_factor = int(1), moduli_batch_no = total_moduli)
 
-        moduli = cy_obj._moduli_projection_sample()
-        n1_moduli = moduli / np.linalg.norm(moduli, axis = 1).reshape(-1,1)
-
-        scaled_moduli = cutoff_ev(n1_moduli, p, cutoff = 1)
+        cy = p.triangulate().get_cy()
+        gvs = cy.compute_gvs(min_points = 400)
+        print(gvs.dok.items())
         
-        with open(f"data/num_moduli_cutoff/num_moduli_cutoff={cutoff}_mm={moduli_max}_tm={total_moduli*10}_hs={h_s}_ind={i}.json", "wb") as f:
-            pickle.dump(scaled_moduli, f)
-
-        plt.close()
-        plt.scatter(scaled_moduli[:,0], scaled_moduli[:,1], s = 1)
-        plt.xlim((-5, 5))
-        plt.ylim((-5, 5))
-        plt.plot([0,5*rays[0,0]], [0,5*rays[0,1]], color = "red")
-        plt.plot([0,5*rays[1,0]], [0,5*rays[1,1]], color = "red")
-
-        plt.savefig(f"figures/num_moduli_cutoff={cutoff}_mm={moduli_max}_tm={total_moduli*10}_hs={h_s}_ind={i}_1")
+        # moduli = cy_obj._moduli_projection_sample()
+        # n1_moduli = moduli / np.linalg.norm(moduli, axis = 1).reshape(-1,1)
+        #
+        # scaled_moduli = cutoff_ev(n1_moduli, p, cutoff = 1, max_trials=300)
+        # 
+        # with open(f"data/num_moduli_cutoff/2_num_moduli_cutoff={cutoff}_mm={moduli_max}_tm={total_moduli*10}_hs={h_s}_ind={i}.json", "wb") as f:
+        #     pickle.dump(scaled_moduli, f)
+        #
+        # plt.close()
+        # plt.scatter(scaled_moduli[:,0], scaled_moduli[:,1], s = 1)
+        # plt.xlim((-5, 5))
+        # plt.ylim((-5, 5))
+        # plt.plot([0,5*rays[0,0]], [0,5*rays[0,1]], color = "red")
+        # plt.plot([0,5*rays[1,0]], [0,5*rays[1,1]], color = "red")
+        #
+        # plt.savefig(f"figures/2_num_moduli_cutoff={cutoff}_mm={moduli_max}_tm={total_moduli*10}_hs={h_s}_ind={i}")
