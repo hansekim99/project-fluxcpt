@@ -15,9 +15,9 @@ h_s_polytope = fetch_polytopes(h11 = h_s, lattice = "N", limit = 100)
 
 # explicitly check infinity cone of each cym
 
-for i in range(2,3):
-# for i in range(len(h_s_polytope)):
-    with open(f"data/num_moduli_cutoff/num_moduli_cutoff={cutoff}_mm={moduli_max}_tm={total_moduli*10}_hs={h_s}_ind={i}_1.json", "rb") as f:
+# for i in range(2,3):
+for i in range(len(h_s_polytope)):
+    with open(f"data/num_moduli_cutoff/num_moduli_cutoff={cutoff}_mm={moduli_max}_tm={total_moduli}_hs={h_s}/2_ind={i}.json", "rb") as f:
         moduli = pickle.load(f)
 
     plt.close('all')
@@ -46,4 +46,4 @@ for i in range(2,3):
     ax1.plot([0, 5*rays[1, 0]], [0, 5*rays[1, 1]], color="red")
     ax1.set_title("Kahler cone and points where instanton correction = 1")
 
-    plt.savefig(f"figures/check_flop_cutoff={cutoff}_mm={moduli_max}_tm={total_moduli*10}_hs={h_s}_ind={i}_2")
+    plt.savefig(f"figures/check_flop_cutoff={cutoff}_mm={moduli_max}_tm={total_moduli}_hs={h_s}/2_ind={i}")

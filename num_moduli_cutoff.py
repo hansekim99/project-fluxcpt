@@ -41,6 +41,17 @@ def rays_multiple(rays, vector, rtol = 1e-8, atol = 1e-12):
             return True 
     return False
 
+# remove nilpotent rays
+def nilpotent_begone(gvs, dual_rays):
+    for i in range(dual_rays.shape[0]):
+        ray = dual_rays[i]
+        if tuple(ray) in gvs:
+            if not tuple(2 * ray) in gvs:
+                print("Null ray! ", ray)
+                del gvs[tuple(ray)]
+    return gvs
+
+
 # given a sample of moduli, evalute the scaling where the instanton correction upto specified degree is less than specified cutoff
     # if parallel, gv invariants are stored in memory
 def cutoff_ev_qvs_moduli(gvs, qvs, moduli, cutoff, max_trials, tol):
@@ -108,6 +119,7 @@ def cutoff_ev(moduli, p, min_points = int(2e1), cutoff = 1, tol = 1e-3, max_tria
 
     cy = p.triangulate().get_cy()
     rays = cy.toric_kahler_cone().extremal_rays()
+    dual_rays = cy.toric_mori_cone(in_basis = True).extremal_rays()
 
     # update moduli; exclude points where one of rounded integers is 0
     moduli, coprime_ints = coprime_integer_scaling(moduli)
@@ -127,6 +139,7 @@ def cutoff_ev(moduli, p, min_points = int(2e1), cutoff = 1, tol = 1e-3, max_tria
     gvs = np.zeros((N, min_points), dtype=np.float64)
 
     gv_dict_default = cy.compute_gvs(min_points = round(min_points*1.2)).dok
+    gv_dict_default = nilpotent_begone(gv_dict_default, dual_rays)
     
     for i in tqdm(range(N)):
         if precise_grading:
@@ -173,20 +186,22 @@ if __name__ == "__main__":
     for i in range(len(h_s_polytope)):
     # for i in range(2,3):
         p = h_s_polytope[i]
-        rays = p.triangulate().get_cy().toric_kahler_cone().extremal_rays()
         
         cy_obj = idn.CalabiYau(p, moduli_max = moduli_max,
                                moduli_sample_factor = int(1), moduli_batch_no = total_moduli)
 
         cy = p.triangulate().get_cy()
+        rays = cy.toric_kahler_cone().extremal_rays()
         
         moduli = cy_obj._moduli_projection_sample()
         moduli = moduli / np.linalg.norm(moduli, axis = 1).reshape(-1,1)
 
-        scaled_moduli = cutoff_ev(moduli, p, cutoff = 1, max_trials=int(1e4),
-                                  precise_grading = True, parallel = False)
+        scaled_moduli = cutoff_ev(moduli, p, min_points = int(1e2), cutoff = 1, max_trials = int(1e4),
+                                  precise_grading = False, parallel = False)
 
-        with open(f"data/num_moduli_cutoff/num_moduli_cutoff={cutoff}_mm={moduli_max}_tm={total_moduli}_hs={h_s}/0_ind={i}.json", "wb") as f:
+        # 0_ind : precise_grading = True, 1_ind : precise_grading = False
+        # in practice parallel does not improve speed that much...
+        with open(f"data/num_moduli_cutoff/num_moduli_cutoff={cutoff}_mm={moduli_max}_tm={total_moduli}_hs={h_s}/2_ind={i}.json", "wb") as f:
             pickle.dump(scaled_moduli, f)
 
         plt.close()
@@ -197,4 +212,4 @@ if __name__ == "__main__":
         plt.plot([0,5*rays[0,0]], [0,5*rays[0,1]], color = "red")
         plt.plot([0,5*rays[1,0]], [0,5*rays[1,1]], color = "red")
 
-        plt.savefig(f"figures/num_moduli_cutoff={cutoff}_mm={moduli_max}_tm={total_moduli}_hs={h_s}/0_ind={i}")
+        plt.savefig(f"figures/num_moduli_cutoff={cutoff}_mm={moduli_max}_tm={total_moduli}_hs={h_s}/2_ind={i}")

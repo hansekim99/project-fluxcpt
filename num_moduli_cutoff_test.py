@@ -51,12 +51,12 @@ def cutoff_check(moduli_sp, gvs_og):
 
     return exp_curves
 
-#|%%--%%| <7qJrRiUIyq|N2xXeU5zRI>
+#|%%--%%| <7qJrRiUIyq|WjRoxEPkyl>
 
 # check the exponential convergence of individual instanton corrections for points suggested to have converging instanton corrections
 
 i = 0
-with open(f"data/num_moduli_cutoff/num_moduli_cutoff={cutoff}_mm={moduli_max}_tm={total_moduli*10}_hs={h_s}_ind={i}_1.json", "rb") as f:
+with open(f"data/num_moduli_cutoff/num_moduli_cutoff={cutoff}_mm={moduli_max}_tm={total_moduli}_hs={h_s}/0_ind={i}.json", "rb") as f:
     moduli = pickle.load(f)
 
 plt.close('all')
@@ -66,7 +66,11 @@ rays = p.triangulate().get_cy().toric_kahler_cone().extremal_rays()
 cy = p.triangulate().get_cy()
 gvs = cy.compute_gvs(min_points = int(2e3))
 
-moduli_sp = np.array([[0.4,0.4],[0.5,0.5],[0.6,0.6],[0.7,0.7],[0.8,0.8],[0.9,0.9]])
+#|%%--%%| <WjRoxEPkyl|aIc2c3x4PS>
+
+ref_dir = [0.8,0.8]
+print(str(ref_dir))
+moduli_sp = np.array([0.6,1])[None,:] * np.linspace(0.6,1.2,5)[:,None]
 
 for tar in range(moduli_sp.shape[0]):
     exp_curves = cutoff_check(moduli_sp[tar], gvs.dok)
@@ -82,5 +86,5 @@ for tar in range(moduli_sp.shape[0]):
 
     ax1.plot(exp_curves[0].T)
     
-    plt.savefig(f"figures/check_moduli_cutoff={cutoff}_mm={moduli_max}_tm={total_moduli*10}_hs={h_s}_ind={i}_tar={tar}")
+    plt.savefig(f"figures/check_moduli_cutoff={cutoff}_mm={moduli_max}_tm={total_moduli}_hs={h_s}/0_ind={i}_refdir={str(ref_dir).replace(".","-")}_tar={tar}")
 
