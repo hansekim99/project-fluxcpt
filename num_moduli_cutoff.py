@@ -118,8 +118,10 @@ def cutoff_ev(moduli, p, min_points = int(2e1), cutoff = 1, tol = 1e-3, max_tria
                    precise_grading = True, parallel = True): 
 
     cy = p.triangulate().get_cy()
-    rays = cy.toric_kahler_cone().extremal_rays()
-    dual_rays = cy.toric_mori_cone(in_basis = True).extremal_rays()
+    # rays = cy.toric_kahler_cone().extremal_rays()
+    # dual_rays = cy.toric_mori_cone(in_basis = True).extremal_rays()
+    rays = cy.mori_cone_cap(in_basis = True).hyperplanes()
+    dual_rays = cy.mori_cone_cap(in_basis = True).extremal_rays()
 
     # update moduli; exclude points where one of rounded integers is 0
     moduli, coprime_ints = coprime_integer_scaling(moduli)
@@ -127,7 +129,7 @@ def cutoff_ev(moduli, p, min_points = int(2e1), cutoff = 1, tol = 1e-3, max_tria
 
     for i in range(moduli.shape[0]):
         # update moduli; exclude points where gv invariant is not defined
-        if rays_multiple(rays, coprime_ints[i]) or not cy.toric_kahler_cone().contains(coprime_ints[i]):
+        if rays_multiple(rays, coprime_ints[i]) or not cy.mori_cone_cap(in_basis = True).dual_cone().contains(coprime_ints[i]):
             flag[i] = False
 
     moduli, coprime_ints = moduli[flag], coprime_ints[flag]
@@ -184,14 +186,15 @@ if __name__ == "__main__":
     total_moduli = int(1e1*10**h_s)
     
     for i in range(len(h_s_polytope)):
-    # for i in range(2,3):
+    # for i in range(16,17):
         p = h_s_polytope[i]
         
         cy_obj = idn.CalabiYau(p, moduli_max = moduli_max,
                                moduli_sample_factor = int(1), moduli_batch_no = total_moduli)
 
         cy = p.triangulate().get_cy()
-        rays = cy.toric_kahler_cone().extremal_rays()
+        # rays = cy.toric_kahler_cone().extremal_rays()
+        rays = cy.mori_cone_cap(in_basis = True).hyperplanes()
         
         moduli = cy_obj._moduli_projection_sample()
         moduli = moduli / np.linalg.norm(moduli, axis = 1).reshape(-1,1)
@@ -201,15 +204,15 @@ if __name__ == "__main__":
 
         # 0_ind : precise_grading = True, 1_ind : precise_grading = False
         # in practice parallel does not improve speed that much...
-        with open(f"data/num_moduli_cutoff/num_moduli_cutoff={cutoff}_mm={moduli_max}_tm={total_moduli}_hs={h_s}/2_ind={i}.json", "wb") as f:
+        with open(f"data/num_moduli_cutoff/num_moduli_cutoff={cutoff}_mm={moduli_max}_tm={total_moduli}_hs={h_s}/3_ind={i}.json", "wb") as f:
             pickle.dump(scaled_moduli, f)
 
         plt.close()
-        # plt.scatter(n1_moduli[:,0], n1_moduli[:,1], s = 1, color = "green")
+        # plt.scatter(moduli[:,0], moduli[:,1], s = 1, color = "green")
         plt.scatter(scaled_moduli[:,0], scaled_moduli[:,1], s = 1)
         plt.xlim((-5, 5))
         plt.ylim((-5, 5))
         plt.plot([0,5*rays[0,0]], [0,5*rays[0,1]], color = "red")
         plt.plot([0,5*rays[1,0]], [0,5*rays[1,1]], color = "red")
 
-        plt.savefig(f"figures/num_moduli_cutoff={cutoff}_mm={moduli_max}_tm={total_moduli}_hs={h_s}/2_ind={i}")
+        plt.savefig(f"figures/num_moduli_cutoff={cutoff}_mm={moduli_max}_tm={total_moduli}_hs={h_s}/3_ind={i}")

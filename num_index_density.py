@@ -42,9 +42,11 @@ class CalabiYau:
         dictK = cy.intersection_numbers(in_basis = True)
         self.arrayK = np.array([[[dictK.get(tuple(sorted((i,j,k))), 0) for i in range(self.h_s)] for j in range(self.h_s)] for k in range(self.h_s)])
 
-        cone_hyperplane = cy.toric_mori_cone(in_basis = True).extremal_rays()
+        # cone_hyperplane = cy.toric_mori_cone(in_basis = True).extremal_rays()
+        cone_hyperplane = cy.mori_cone_cap(in_basis = True).extremal_rays()
         self.hplane_n = cone_hyperplane.T / (np.linalg.norm(cone_hyperplane, axis = 1))
-        self.krays = cy.toric_kahler_cone().extremal_rays()
+        # self.krays = cy.toric_kahler_cone().extremal_rays()
+        self.krays = cy.mori_cone_cap(in_basis = True).hyperplanes()
 
         self.m_m = moduli_max
 
