@@ -32,10 +32,9 @@ def compute_invariant(invariant, specgeo):
 # |%%--%%| <6WU9KONeFg|TW544k8r37>
 
 class CalabiYau:
-    def __init__(self, polytope, moduli_max = 10, 
+    def __init__(self, cy, moduli_max = 10, 
                 moduli_sample_factor = int(1e4), moduli_batch_no = int(1e2)):
 
-        cy = polytope.triangulate().get_cy()
         self.h_s = cy.h11()
         self.kahler_cone = cy.toric_kahler_cone()
         
