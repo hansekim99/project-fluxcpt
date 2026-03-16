@@ -1,22 +1,22 @@
 from importlib import reload
 from cytools import fetch_polytopes
 
-h_s = 3
+h_s = 2
 #p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
 h_s_polytope = fetch_polytopes(h11 = h_s, lattice = "N", limit = 100)
 
-#|%%--%%| <e0PJIeuUXz|JKT5eUNmJ6>
+#|%%--%%| <BZ3AEmzjw0|dMTn4fSMHf>
 
 import cone_flop_class
 reload(cone_flop_class)
 
 # find diffeomorphism classes (remove duplicate cy3s) and find flop facets
-diffeo, flops = cone_flop_class.diffeo_class(h_s_polytope, h_s, mode = "load")
+diffeo, flops = cone_flop_class.diffeo_class_flops(h_s_polytope, h_s, mode = "load")
 
 # check each flop facet for birational equivalent cy3 and collect into classes
 birational = cone_flop_class.birational_class(diffeo, flops, h_s, mode = "load")
 
-#|%%--%%| <JKT5eUNmJ6|L20gYK9d7V>
+#|%%--%%| <dMTn4fSMHf|HPyrhOjuAV>
 
 import cone_moduli_cutoff
 reload(cone_moduli_cutoff)
@@ -26,14 +26,16 @@ cutoff = cone_moduli_cutoff.cutoff_dict(diffeo, flops, h_s, mode = "load")
 
 # glue moduli cutoff diagrams together for each flop class
 # cone_moduli_cutoff.scatter_plot_2d(birational, cutoff, h_s)
+# cone_moduli_cutoff.scatter_plot_hyperplane(birational, cutoff, h_s, perp_vecs = [[0,0,1]], perp_coors = [1])
 
-#|%%--%%| <L20gYK9d7V|CqL3223mdD\>
+#|%%--%%| <HPyrhOjuAV|FrgfMI7sIs>
 
 import num_index_density as idn
 reload(idn)
 
 # loop through all equiv classes; for each class loop through all cys
 
+idn.rho_scatter_plot_2d(diffeo, birational, cutoff, h_s, m_m = 5, msf = 1e5)
 
 # for i in range(1):
 #     p = h_s_polytope[i]

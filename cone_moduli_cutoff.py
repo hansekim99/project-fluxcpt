@@ -157,35 +157,33 @@ def scatter_plot_2d(birational, cutoff, h_s):
                 plt.savefig(f"figures/cone_moduli_cutoff/h_s={h_s}_h12={h12}")
 
 def scatter_plot_hyperplane(birational, cutoff, h_s, perp_vecs = None, perp_coors = None, crit = 0.1):
-    if perp_vecs != None:
-        perp_lo = perp_vecs @ perp_coors
-
+    perp_vecs, perp_coors = np.array(perp_vecs), np.array(perp_coors)
     def filter_points(pts):
-        mask = np.all(pts[:,-2:] > perp_lo, pts[:,-2:] < perp_lo + crit)
+        perp_ip = np.einsum('na,ba->nb', pts, perp_vecs)
+        mask = np.all((perp_ip > perp_coors) & (perp_ip < perp_coors + crit), axis = 1)
         return pts[mask]
 
     for h12, v0 in birational.items():
+        not_found = True
         for k, v in v0.items():
             if v == []:
                 continue
-            else:
+            elif not_found:
                 plt.cla()
                 plt.xlim((-5,5))
                 plt.ylim((-5,5))
-                
                 cutoff_pts = cutoff[k][0]
+                filtered_pts = filter_points(cutoff_pts)
                 rays = cutoff[k][1]
-                plt.scatter(*np.array(cutoff_pts).T, s = 1)
-                plt.plot([0, 5*rays[0, 0]], [0, 5*rays[0, 1]], color="red")
-                plt.plot([0, 5*rays[1, 0]], [0, 5*rays[1, 1]], color="red")
+                plt.scatter(*np.array(filtered_pts).T)
                 
                 for i in range(len(v)):
                     flop_cutoff_pts = cutoff[v[i][0]][0]
+                    flop_filtered_pts = filter_points(flop_cutoff_pts)
                     flop_rays = cutoff[v[i][0]][1]
-                    plt.scatter(*np.array(flop_cutoff_pts).T, s = 1)
-                    plt.plot([0, 5*flop_rays[0, 0]], [0, 5*flop_rays[0, 1]], color="red")
-                    plt.plot([0, 5*flop_rays[1, 0]], [0, 5*flop_rays[1, 1]], color="red")
+                    plt.scatter(*np.array(flop_filtered_pts).T)
                 
-                plt.title(f"Extended Kahler cone and GV cone for 2-face equiv. CY3s with h12 = {h12}")
+                plt.title(f"Extended Kahler cone and GV cone for 2-face equiv. CY3s with h12 = {h12}\n 2-plane w. distance {perp_coors} along {perp_vecs}; tolerance {crit}")
                 plt.savefig(f"figures/cone_moduli_cutoff/h_s={h_s}_h12={h12}")
 
+                not_found = False

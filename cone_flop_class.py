@@ -18,7 +18,7 @@ def identify_nilpotent(cy, min_points = 1e3, criter = 3):
 
     return null_rays
 
-def _diffeo_class(polytopes):
+def _diffeo_class_flops(polytopes):
     diffeo = defaultdict(dict)
     flops = defaultdict(dict)
 
@@ -32,7 +32,8 @@ def _diffeo_class(polytopes):
             wall = (tuple(cy.second_chern_class(in_basis = True).tolist()), tuple(sorted(cy.intersection_numbers(in_basis = True).items())))
             if wall not in diffeo:
                 diffeo[cy.h12()][wall] = [[i, j], cy]
-                flops[cy.h12()][wall] = [[i, j], identify_nilpotent(cy)]
+                flop_ray_gv0_list = identify_nilpotent(cy)
+                flops[cy.h12()][wall] = [[i, j], flop_ray_gv0_list]
 
             else:
                 print([i,j], " is duplicate of ", diffeo[wall][0])
@@ -40,9 +41,9 @@ def _diffeo_class(polytopes):
 
     return diffeo, flops
 
-def diffeo_class(polytopes, h_s, mode = "load"):
+def diffeo_class_flops(polytopes, h_s, mode = "load"):
     if mode == "save":
-        diffeo, flops = _diffeo_class(polytopes)
+        diffeo, flops = _diffeo_class_flops(polytopes)
                     
         with open(f"data/cone_diffeo_class/h_s={h_s}.json", "wb") as f:
             pickle.dump(diffeo, f)
@@ -63,30 +64,33 @@ def _birational_class(diffeo, flops):
     for h12, diffs in diffeo.items():
         for k, v in diffs.items():
             h_s = len(k[0])
-            ray_gv0_list = flops[h12][k][1]
+            flop_ray_gv0_list = flops[h12][k][1]
 
             equiv_class = []
+            
+            if len(flop_ray_gv0_list) > 0:
+                print("before flop : ", k)
 
-            for rays in ray_gv0_list:
-                ray, gv0 = rays[0], rays[1]
+            for flop_ray_gv0 in flop_ray_gv0_list:
+                flop_ray, flop_gv0 = flop_ray_gv0[0], flop_ray_gv0[1]
                 flop_second_chern_class = np.array(k[0])
-                flop_second_chern_class += 2 * gv0 * ray
+                flop_second_chern_class += 2 * flop_gv0 * flop_ray
             
                 flop_intersection_numbers = dict(k[1])
                 for a in range(h_s):
                     for b in range(h_s):
                         for c in range(h_s):
                             if (a,b,c) in flop_intersection_numbers:
-                                flop_intersection_numbers[(a,b,c)] -= int(gv0*ray[a]*ray[b]*ray[c])
+                                flop_intersection_numbers[(a,b,c)] -= int(flop_gv0*flop_ray[a]*flop_ray[b]*flop_ray[c])
                             else:
-                                flop_intersection_numbers[(a,b,c)] = int(-gv0*ray[a]*ray[b]*ray[c])
+                                flop_intersection_numbers[(a,b,c)] = int(-flop_gv0*flop_ray[a]*flop_ray[b]*flop_ray[c])
                             if flop_intersection_numbers[(a,b,c)] == 0:
                                 del flop_intersection_numbers[(a,b,c)]
                 
                 flop_key = (tuple(flop_second_chern_class.tolist()), tuple(sorted(flop_intersection_numbers.items())))
 
                 if flop_key in diffs:
-                    equiv_class.append([flop_key, ray])
+                    equiv_class.append([flop_key, flop_ray])
                 else:
                     # WIP : find integer transformations
                     cy = v[1] # cy = diffeo[h12][k][1]
