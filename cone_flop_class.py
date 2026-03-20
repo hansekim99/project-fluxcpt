@@ -14,7 +14,15 @@ def identify_nilpotent(cy, min_points = 1e3, criter = 3):
         ray = dual_rays[i]
         if tuple(ray) in gvs:
             if not tuple(criter * ray) in gvs:
-                null_rays.append([ray, gvs[tuple(ray)]])
+                null_rays.append([ray, gvs[(tuple(ray))]])
+                # ray_gvs = []
+                # for i in range(criter):
+                #     if tuple((i+1) * ray) in gvs:
+                #         print(ray, i)
+                #         ray_gvs.append(gvs[tuple((i+1) * ray)])
+                #     else:
+                #         break
+                # null_rays.append([ray, ray_gvs])
 
     return null_rays
 
@@ -42,9 +50,10 @@ def _diffeo_class_flops(polytopes):
     return diffeo, flops
 
 def diffeo_class_flops(polytopes, h_s, mode = "load"):
-    if mode == "save":
+    if mode == "save" or mode == "run":
         diffeo, flops = _diffeo_class_flops(polytopes)
-                    
+
+    if mode == "save":       
         with open(f"data/cone_diffeo_class/h_s={h_s}.json", "wb") as f:
             pickle.dump(diffeo, f)
         with open(f"data/cone_diffeo_class/h_s={h_s}_flops.json", "wb") as f:
@@ -102,8 +111,10 @@ def _birational_class(diffeo, flops):
     return birational
 
 def birational_class(diffeo, flops, h_s, mode = "load"):
-    if mode == "save":
+    if mode == "save" or mode == "run":
         birational = _birational_class(diffeo, flops)
+
+    if mode == "save":
         with open(f"data/cone_diffeo_class/h_s={h_s}_birational.json", "wb") as f:
             pickle.dump(birational, f)
 
