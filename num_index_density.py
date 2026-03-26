@@ -29,10 +29,18 @@ def compute_invariant(invariant, specgeo):
 
     return total_invariant
 
+def polylog(s, z, co = 20):
+    res = np.zeros_like(z)
+
+    for k in range(1, co):
+        res += z ** k / k ** s
+
+    return res
+
 # |%%--%%| <6WU9KONeFg|ytmUumXbRo>
 
 class CalabiYau:
-    def __init__(self, cy, moduli_max = 10, 
+    def __init__(self, cy, moduli_max = 10.0, 
                 moduli_sample_factor = int(1e4), moduli_batch_no = int(1e2)):
 
         self.h_s = cy.h11()
@@ -77,7 +85,7 @@ class CalabiYau:
         filled = 0
         
         while filled < self.msno:
-            raw_moduli_im_samples = self.rng.uniform(-self.m_m, self.m_m, size = (self.msno, self.h_s))
+            raw_moduli_im_samples = self.rng.uniform(-self.m_m, self.m_m, size = (self.msno, self.h_s)).astype(np.float128)
             dist_from_hyperplane = raw_moduli_im_samples @ self.hplane_n
             filter = (dist_from_hyperplane > 0).all(axis = 1)
             moduli_im_samples_new = raw_moduli_im_samples[filter]
@@ -99,26 +107,49 @@ class CalabiYau:
         
         return moduli_im_samples_new
 
-    def _ms_num(self, ms):
-        polyK = 1/6 * np.einsum('abc,na,nb,nc->n', self.arrayK, ms, ms, ms)
-        scalarK = -np.log(2*polyK)
+    def _ms_num(self, ms, gv_flop = None):
+        polyK = 8/6 * np.einsum('abc,na,nb,nc->n', self.arrayK, ms, ms, ms)
+        scalarK = -np.log(polyK)
 
-        polyK_a = 1/2 * np.einsum('abc,nb,nc->na', self.arrayK, ms, ms)
-        polyK_ab = np.einsum('abc,nc->nab', self.arrayK, ms)
+        polyK_a = 8/2 * np.einsum('abc,nb,nc->na', self.arrayK, ms, ms)
+        polyK_ab = 8 * np.einsum('abc,nc->nab', self.arrayK, ms)
+
+        if gv_flop != None:
+            gv, flop = np.array(gv_flop[1]), np.array(gv_flop[0])
+            # multiple flops?
+            
+            z = gv * np.exp(-2*np.pi*(ms @ flop))
+            # polyK_inst = 1/(2*np.pi)**3 * gv * np.exp(-2*np.pi*(ms @ flop))
+            polyK_inst = 1/(2*np.pi)**3 * polylog(3, z)
+            polyK += polyK_inst
+
+            # polyK_a_inst = -1/(2*np.pi)**2 * gv * np.exp(-2*np.pi*(ms @ flop))[:, None] * flop[None, :]
+            polyK_a_inst = -1/(2*np.pi)**2 * polylog(2, z)[:, None] * flop[None, :]
+            polyK_a += polyK_a_inst
+
+            # polyK_ab_inst = 1/(2*np.pi) * gv * np.exp(-2*np.pi*(ms @ flop))[:, None, None] * flop[None, :, None] * flop[None, None, :]
+            polyK_ab_inst = 1/(2*np.pi) * gv * polylog(1, z)[:, None, None] * flop[None, :, None] * flop[None, None, :]
+            polyK_ab += polyK_ab_inst
         
         matrG_num = 1/4 * (polyK_a[:,:,None] * polyK_a[:,None,:] - polyK_ab[:,:,:] * polyK[:,None,None]) / polyK[:,None,None] ** 2
         matrG_inv_num = np.linalg.inv(matrG_num)
-
-        _, logdetG_num = np.linalg.slogdet(matrG_num)
         
-        vb_num = np.linalg.cholesky(matrG_inv_num)
-        specgeo_num = -1j * np.einsum('nai,nbj,nck,abc->nijk', vb_num, vb_num, vb_num, self.arrayK) * np.exp(scalarK)[:,None,None,None]
+        eigs = np.linalg.eigvalsh(matrG_inv_num)
+        pos_def_mask = np.all(eigs > 0, axis = -1)
 
-        return logdetG_num, specgeo_num.imag * 1j
+        vb_num = np.linalg.cholesky(matrG_inv_num[pos_def_mask])
+        scalarK = scalarK[pos_def_mask]
+        specgeo_num = np.einsum('nai,nbj,nck,abc->nijk', vb_num, vb_num, vb_num, self.arrayK) * np.exp(scalarK[:,None,None,None])
+        
+        _, logdetG_num = np.linalg.slogdet(matrG_num)
+        logdetG_num = logdetG_num[pos_def_mask]
 
-    def distr_rho(self, mrl = False):
+        return logdetG_num, specgeo_num, pos_def_mask
+
+    def distr_rho(self, mrl = False, gv_flop = None):
         moduli_distr = []
         integrand_distr = []
+        npd_distr = []
 
         invariant = h_s_to_invariant(self.h_s)
         
@@ -127,21 +158,22 @@ class CalabiYau:
             ms_sample = self._moduli_projection_sample()
                 
             # part 2 : compute scalar density
-            logdetG, specgeo = self._ms_num(ms_sample)
+            logdetG, specgeo, pdmask = self._ms_num(ms_sample, gv_flop)
             scalar = compute_invariant(invariant, specgeo) * np.pi**(-(self.h_s+1)) # index vacua density = rho
             integrand = scalar * np.exp(logdetG)
             
-            moduli_distr.append(ms_sample)
+            moduli_distr.append(ms_sample[pdmask])
             integrand_distr.append(integrand)
+            npd_distr.append(ms_sample[np.logical_not(pdmask)])
 
-        moduli_distr, scalar_distr = np.array(moduli_distr), np.array(integrand_distr)
-        moduli_distr_lin = moduli_distr.reshape(-1,self.h_s)
-        scalar_distr_lin = scalar_distr.reshape(-1)
+        moduli_distr = np.concatenate(moduli_distr, axis=0)
+        scalar_distr = np.concatenate(integrand_distr, axis = 0)
+        npd_distr = np.concatenate(npd_distr, axis = 0)
 
-        return moduli_distr_lin, scalar_distr_lin
+        return moduli_distr, scalar_distr, npd_distr
 
     
-    def integ_rho(self, test_func = None, mrl = False, k = 20):
+    def integ_rho(self, test_func = None, mrl = False, gv_flop = None, k = 20):
         moduli_distr = []
         integrand_distr = []
 
@@ -159,7 +191,7 @@ class CalabiYau:
 
             # part 2 : compute scalar density
             if test_func == None:
-                logdetG, specgeo = self._ms_num(ms_sample)
+                logdetG, specgeo, posdef = self._ms_num(ms_sample)
                 scalar = compute_invariant(invariant, specgeo) * np.pi**(-(self.h_s+1)) # index vacua density = rho
                 integrand = scalar * np.exp(logdetG)
                 p = -self.h_s
