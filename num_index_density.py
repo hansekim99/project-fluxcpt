@@ -118,13 +118,13 @@ class CalabiYau:
             gv, flop = np.array(gv_flop[1]), np.array(gv_flop[0])
             # multiple flops?
             
-            z = gv * np.exp(-2*np.pi*(ms @ flop))
+            z = np.exp(-2*np.pi*(ms @ flop))
             # polyK_inst = 1/(2*np.pi)**3 * gv * np.exp(-2*np.pi*(ms @ flop))
-            polyK_inst = 1/(2*np.pi)**3 * polylog(3, z)
+            polyK_inst = 1/(2*np.pi)**3 * gv * polylog(3, z)
             polyK += polyK_inst
 
             # polyK_a_inst = -1/(2*np.pi)**2 * gv * np.exp(-2*np.pi*(ms @ flop))[:, None] * flop[None, :]
-            polyK_a_inst = -1/(2*np.pi)**2 * polylog(2, z)[:, None] * flop[None, :]
+            polyK_a_inst = - 1/(2*np.pi)**2 * gv * polylog(2, z)[:, None] * flop[None, :]
             polyK_a += polyK_a_inst
 
             # polyK_ab_inst = 1/(2*np.pi) * gv * np.exp(-2*np.pi*(ms @ flop))[:, None, None] * flop[None, :, None] * flop[None, None, :]

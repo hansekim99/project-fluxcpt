@@ -1,26 +1,22 @@
 from importlib import reload
-from cytools import fetch_polytopes
-
-h_s = 2
-#p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-h_s_polytope = fetch_polytopes(h11 = h_s, lattice = "N", limit = 10)
-
-#|%%--%%| <BZ3AEmzjw0|dMTn4fSMHf>
 
 import cone_flop_class
 reload(cone_flop_class)
 
+h_s = 3
+
 # find diffeomorphism classes (remove duplicate cy3s) and find flop facets
-diffeo, flops = cone_flop_class.diffeo_class_flops(h_s_polytope, h_s, mode = "load")
+# assign birational equivalence classses
+diffeo = cone_flop_class.diffeo_class(h_s, polytope_no_max = 100, polytope_tqdm = True, 
+                                      mode = "save", nontrivial_ntfe_frsts = True)
 
-# for h12, vv in diffeo.items():
-#     for k, v in vv.items():
-#         if h12 == 45:
-#             print(h12, k, flops[h12][k][0])
-#             print(flops[h12][k][1])
-
-# check each flop facet for birational equivalent cy3 and collect into classes
-birational = cone_flop_class.birational_class(diffeo, flops, h_s, mode = "load")
+for wd, cydata in diffeo.items():
+    print("====")
+    print(wd)
+    print(cydata.p_i)
+    print(cydata.nop_ray_gv_list)
+    print(cydata.birational_class_wall_data_list)
+    print(cydata.birational_class_ray_gv_list)
 
 #|%%--%%| <dMTn4fSMHf|HPyrhOjuAV>
 
@@ -28,7 +24,7 @@ import cone_moduli_cutoff
 reload(cone_moduli_cutoff)
 
 # import moduli cutoff; for each in flop class generate moduli cutoff
-cutoff = cone_moduli_cutoff.cutoff_dict(diffeo, flops, h_s, mode = "load")
+cutoff = cone_moduli_cutoff.cutoff_dict(diffeo, h_s, mode = "load")
 
 # glue moduli cutoff diagrams together for each flop class
 # cone_moduli_cutoff.scatter_plot_2d(birational, cutoff, h_s)
@@ -58,7 +54,7 @@ def scatter_2d_plot(h12, k):
 
 for h12, v in birational.items():
     for k, vv in v.items():
-        if vv != [] and h12 == 74:
+        if vv != [] and h12 == 86:
             # plt.cla()
             cy_obj, gv_flop = scatter_2d_plot(h12, k)
             moduli, scalar, npd_m = cy_obj.distr_rho(mrl = True, gv_flop = gv_flop)
