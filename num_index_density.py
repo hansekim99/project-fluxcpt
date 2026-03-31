@@ -40,20 +40,18 @@ def polylog(s, z, co = 20):
 # |%%--%%| <6WU9KONeFg|ytmUumXbRo>
 
 class CalabiYau:
-    def __init__(self, cy, moduli_max = 10.0, 
+    def __init__(self, cy_data, moduli_max = 10.0, 
                 moduli_sample_factor = int(1e4), moduli_batch_no = int(1e2)):
 
-        self.h_s = cy.h11()
-        self.kahler_cone = cy.toric_kahler_cone()
+        self.h_s = cy_data.h_s
         
-        dictK = cy.intersection_numbers(in_basis = True)
+        dictK = cy_data.kijk
         self.arrayK = np.array([[[dictK.get(tuple(sorted((i,j,k))), 0) for i in range(self.h_s)] for j in range(self.h_s)] for k in range(self.h_s)])
 
         # cone_hyperplane = cy.toric_mori_cone(in_basis = True).extremal_rays()
-        cone_hyperplane = cy.mori_cone_cap(in_basis = True).extremal_rays()
+        cone_hyperplane = cy_data.mori_extremal_rays
         self.hplane_n = cone_hyperplane.T / (np.linalg.norm(cone_hyperplane, axis = 1))
-        # self.krays = cy.toric_kahler_cone().extremal_rays()
-        self.krays = cy.mori_cone_cap(in_basis = True).hyperplanes()
+        self.krays = cy_data.kahler_extremal_rays
 
         self.m_m = moduli_max
 
@@ -69,32 +67,6 @@ class CalabiYau:
         sample /= np.linalg.norm(sample, axis=1).reshape(-1,1)
         sample = (sample @ self.hplane_n > 0).all(axis=1)
         return (2.0 * np.pi**(self.h_s/2.0) / math.gamma(self.h_s/2.0)) * sample.mean()
-    
-    def _moduli_discrete_sample(self):
-        moduli_im_samples = self.kahler_cone.find_lattice_points(min_points = self.msno * self.mrno)
-
-        size = moduli_im_samples.max()
-
-        return moduli_im_samples / size * self.m_m
-
-    def _moduli_uniform_sample(self):
-        # rejection sampling within the kahler cone
-        # for each choice of n-1 rays, obtain one hyperplane
-
-        moduli_im_samples = np.empty((self.msno, self.h_s))
-        filled = 0
-        
-        while filled < self.msno:
-            raw_moduli_im_samples = self.rng.uniform(-self.m_m, self.m_m, size = (self.msno, self.h_s)).astype(np.float128)
-            dist_from_hyperplane = raw_moduli_im_samples @ self.hplane_n
-            filter = (dist_from_hyperplane > 0).all(axis = 1)
-            moduli_im_samples_new = raw_moduli_im_samples[filter]
-
-            k = min(moduli_im_samples_new.shape[0], self.msno - filled)
-            moduli_im_samples[filled:filled+k] = moduli_im_samples_new[:k]
-            filled += k
-        
-        return moduli_im_samples
 
     def _moduli_projection_sample(self):
         rays_num = self.krays.shape[0]

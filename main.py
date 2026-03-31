@@ -7,28 +7,22 @@ h_s = 3
 
 # find diffeomorphism classes (remove duplicate cy3s) and find flop facets
 # assign birational equivalence classses
-diffeo = cone_flop_class.diffeo_class(h_s, polytope_no_max = 100, polytope_tqdm = True, 
-                                      mode = "save", nontrivial_ntfe_frsts = True)
+diffeo = cone_flop_class.diffeo_class(h_s, polytope_no_max = 100, flop_max_deg = 3,
+                                      mode = "load", nontrivial_ntfe_frsts = True)
 
-for wd, cydata in diffeo.items():
-    print("====")
-    print(wd)
-    print(cydata.p_i)
-    print(cydata.nop_ray_gv_list)
-    print(cydata.birational_class_wall_data_list)
-    print(cydata.birational_class_ray_gv_list)
-
-#|%%--%%| <dMTn4fSMHf|HPyrhOjuAV>
+#|%%--%%| <RW9ePZvbKJ|HPyrhOjuAV>
 
 import cone_moduli_cutoff
 reload(cone_moduli_cutoff)
 
 # import moduli cutoff; for each in flop class generate moduli cutoff
-cutoff = cone_moduli_cutoff.cutoff_dict(diffeo, h_s, mode = "load")
+cutoff = cone_moduli_cutoff.cutoff_dict(h_s, diffeo, moduli_sample_factor = 1, moduli_max = 5,
+                cutoff_val = 1, cutoff_max_trials = 100, cutoff_tol = 1e-2,
+                mode = "load", gv_dict_mode = "degree")
 
 # glue moduli cutoff diagrams together for each flop class
-# cone_moduli_cutoff.scatter_plot_2d(birational, cutoff, h_s)
-# cone_moduli_cutoff.scatter_plot_hyperplane(birational, cutoff, h_s, perp_vecs = [[0,0,1]], perp_coors = [1])
+# cone_moduli_cutoff.scatter_plot_2d(diffeo, cutoff, h_s)
+cone_moduli_cutoff.scatter_plot_hyperplane(diffeo, cutoff, h_s, perp_vecs = [[0,0,1]], perp_coors = [2])
 
 #|%%--%%| <HPyrhOjuAV|FrgfMI7sIs>
 
