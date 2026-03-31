@@ -16,7 +16,6 @@ def _nilpotent_begone(gvs, ray_gv_list):
 
     return gvs
 
-
 # given a sample of moduli, evalute the scaling where the instanton correction upto specified degree is less than specified cutoff
 def _cutoff_ev_qvs_moduli(gvs, qvs, moduli, cutoff, max_trials, tol):
     gvs = np.asarray(gvs, dtype=np.float64)
@@ -94,7 +93,6 @@ def _cutoff_ev(moduli, gv_dict, cutoff_val, cutoff_max_trials, cutoff_tol):
 
     return scaled_moduli
 
-
 def cutoff_dict(h_s, diffeo, moduli_sample_factor, moduli_max,
                 cutoff_val, cutoff_max_trials, cutoff_tol,
                 mode, gv_dict_mode):
@@ -123,6 +121,7 @@ def cutoff_dict(h_s, diffeo, moduli_sample_factor, moduli_max,
             cutoff = pickle.load(f)
 
     return cutoff
+
 
 #|%%--%%| <a4OAbF0QDE|EouizVw9ra>
 

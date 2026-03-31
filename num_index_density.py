@@ -1,5 +1,6 @@
 import numpy as np
 import math
+import pickle
 from tqdm import tqdm
 
 #|%%--%%| <TW544k8r37|6WU9KONeFg>
@@ -37,7 +38,7 @@ def polylog(s, z, co = 20):
 
     return res
 
-# |%%--%%| <6WU9KONeFg|ytmUumXbRo>
+# |%%--%%| <6WU9KONeFg|NixyaaHNsh>
 
 class CalabiYau:
     def __init__(self, cy_data, moduli_max = 10.0, 
@@ -118,14 +119,14 @@ class CalabiYau:
 
         return logdetG_num, specgeo_num, pos_def_mask
 
-    def distr_rho(self, mrl = False, gv_flop = None):
+    def distr_rho(self, gv_flop = None):
         moduli_distr = []
         integrand_distr = []
-        npd_distr = []
+        # npd_distr = []
 
         invariant = h_s_to_invariant(self.h_s)
         
-        for _ in tqdm(range(self.mrno), disable = not mrl):
+        for _ in tqdm(range(self.mrno)):
             # part 1 : sample points inside kahler cone
             ms_sample = self._moduli_projection_sample()
                 
@@ -136,79 +137,63 @@ class CalabiYau:
             
             moduli_distr.append(ms_sample[pdmask])
             integrand_distr.append(integrand)
-            npd_distr.append(ms_sample[np.logical_not(pdmask)])
+            # npd_distr.append(ms_sample[np.logical_not(pdmask)])
 
         moduli_distr = np.concatenate(moduli_distr, axis=0)
         scalar_distr = np.concatenate(integrand_distr, axis = 0)
-        npd_distr = np.concatenate(npd_distr, axis = 0)
+        # npd_distr = np.concatenate(npd_distr, axis = 0)
 
-        return moduli_distr, scalar_distr, npd_distr
+        return moduli_distr, scalar_distr
 
-    
-    def integ_rho(self, test_func = None, mrl = False, gv_flop = None, k = 20):
-        moduli_distr = []
-        integrand_distr = []
+#|%%--%%| <NixyaaHNsh|qHQxDZINw6>
 
-        invariant = h_s_to_invariant(self.h_s)
+def _nilpotent_begone(gvs, ray_gv_list):
+    for ray_gv in ray_gv_list:
+        ray = ray_gv[0]
+        d = 1
+        while tuple(d * ray) in gvs:
+            del gvs[tuple(d * ray)]
+    return gvs
 
-        section_area = self._section_area()
+def moduli_check(cyd, moduli, gv_dict_mode = "degree"):
+    ray_gv_list = cyd.nop_ray_gv_list
 
-        for _ in tqdm(range(self.mrno), disable = not mrl):
-            # part 1 : sample points inside kahler cone
-            ms_sample = self._moduli_projection_sample()
+    if gv_dict_mode == "degree":
+        gv_dict_default = cyd.cutoff_gv_dict_deg
+    gv_dict = _nilpotent_begone(gv_dict_default.dok, ray_gv_list)
 
-            # rescale moduli points to spherical shell
-            ms_norms = np.linalg.norm(ms_sample, axis=1).reshape(-1,1)
-            ms_sample = ms_sample / ms_norms * self.m_m
+    gvs = np.array(list(gv_dict.values()), dtype=np.float64)
+    qvs = np.array(list(gv_dict.keys()), dtype=np.float64)
 
-            # part 2 : compute scalar density
-            if test_func == None:
-                logdetG, specgeo, posdef = self._ms_num(ms_sample)
-                scalar = compute_invariant(invariant, specgeo) * np.pi**(-(self.h_s+1)) # index vacua density = rho
-                integrand = scalar * np.exp(logdetG)
-                p = -self.h_s
+    exponent = np.exp(-2*np.pi*np.einsum("md,Nd->Nm", qvs, moduli))
+    instanton = np.einsum("m,Nm->N", gvs, exponent)
+    mask = instanton < 1
 
-            elif test_func == "one":
-                integrand = np.ones_like(ms_sample[:,0])
-                p = self.h_s
+    return mask
+
+def index_density(h_s, diffeo, msf = int(1e3), m_m = 5,
+                  mode = "load"):
+    if mode == "save":
+        index_density_distr = {}
+
+        for wd, cyd in diffeo.items():
+            cy_obj = CalabiYau(cyd, moduli_max = m_m, moduli_sample_factor = m_m ** h_s * msf)
+            moduli_distr, scalar_distr = cy_obj.distr_rho()
+
+            mask = moduli_check(cyd, moduli_distr)
+            volume = cy_obj._section_area() * np.sum(mask) / scalar_distr.shape[0]
+            scalar_distr = scalar_distr[mask]
             
-            # part 3 : integrate; perform radial integral analytically
-            # WIP : include cutoff as lower bound for analytic integral
-            th = ms_sample / self.m_m
-            r_b = self.m_m
-            r_a = np.ones(th.shape[0])
-            #r_a = np.asarray(cutoff(th), dtype=float)
+            scalar_mean = np.mean(scalar_distr)
+            scalar_integ = scalar_mean * volume
 
-            filter = np.isfinite(r_a) & (r_a < r_b)
-            rf = np.zeros_like(r_a)
-            rf[filter] = (r_b**p - r_a[filter]**p) / p
-            integrand *= rf
-            
-            # part 4 : integrate; perform angular integral numerically; importance sampling via knn
-            angular_dist = np.arccos(np.clip(th @ th.T,-1,1))
-            np.fill_diagonal(angular_dist, np.inf)
-            alpha = np.partition(angular_dist, k-1, axis=1)[:, k-1]
-            impt = np.maximum(alpha, 1e-15) ** (self.h_s - 1)
-            integrand = (integrand * impt) / np.mean(impt)
+            index_density_distr[wd] = scalar_integ
 
-            moduli_distr.append(ms_sample)
-            integrand_distr.append(integrand)
-                    
-        moduli_distr, scalar_distr = np.array(moduli_distr), np.array(integrand_distr)
-        moduli_distr_lin = moduli_distr.reshape(-1,self.h_s)
-        scalar_distr_lin = scalar_distr.reshape(-1)
-            
-        batch_means = scalar_distr.mean(axis=1) * section_area
-        scalar_mean = batch_means.mean()
-        scalar_se  = batch_means.std(ddof=1) / np.sqrt(batch_means.size)
+        with open(f"data/num_index_density/h_s={h_s}_density.json", "wb") as f:
+            pickle.dump(index_density_distr, f)
 
-        if test_func == None:
-            prefactor = (2*np.pi) ** (2*(self.h_s+1)) / math.factorial(2*(self.h_s+1))
-            axiodilaton = np.pi / 12
+    elif mode == "load":
+        with open(f"data/num_index_density/h_s={h_s}_density.json", "rb") as f:
+            index_density_distr = pickle.load(f)
 
-            const = prefactor * axiodilaton 
-            scalar_mean *= const
-            scalar_se *= const
-
-        return moduli_distr_lin, scalar_distr_lin, scalar_mean, scalar_se
-
+    return index_density_distr
