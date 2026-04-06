@@ -2,9 +2,6 @@ import numpy as np
 import pickle
 from tqdm import tqdm
 import num_index_density as idn
-import matplotlib.pyplot as plt
-
-# |%%--%%| <Jn6Ef3is6D|a4OAbF0QDE>
 
 # remove nilpotent rays
 def _nilpotent_begone(gvs, ray_gv_list):
@@ -16,20 +13,31 @@ def _nilpotent_begone(gvs, ray_gv_list):
 
     return gvs
 
+def polylog(s, z, co = 20):
+    res = np.zeros_like(z)
+
+    for k in range(1, co):
+        res += z ** k / k ** s
+
+    return res
+
 # given a sample of moduli, evalute the scaling where the instanton correction upto specified degree is less than specified cutoff
-def _cutoff_ev_qvs_moduli(gvs, qvs, moduli, cutoff, max_trials, tol):
-    gvs = np.asarray(gvs, dtype=np.float64)
-    qvs = np.asarray(qvs, dtype=np.float64)
-    moduli = np.asarray(moduli, dtype=np.float64)
+def _cutoff_ev_qvs_moduli(ray_gv_list, gv_dict_default, moduli, cutoff, max_trials, tol):
+    d = moduli.shape[0]
+    gv_dict = _nilpotent_begone(gv_dict_default.dok, ray_gv_list)
+    gvs = np.array(list(gv_dict.values()), dtype=np.float64)
+    qvs = np.array(list(gv_dict.keys()), dtype=np.float64)
+    moduli = np.asarray(moduli, dtype=np.float64).reshape(1,d)
     
-    N = moduli.shape[0]
-    exponent = -2*np.pi*np.einsum("Nmd,Nd->Nm", qvs, moduli)
+    exponent = -2*np.pi*np.einsum("md,Nd->Nm", qvs, moduli)
 
     def log_inst(l):
         weighted_exponent = l[:,None] * exponent
-        return np.log(np.einsum("Nm,Nm->N", np.abs(gvs), np.exp(weighted_exponent)))
+        z = np.exp(weighted_exponent)
+        inst = np.einsum("m,Nm->N", np.abs(gvs), polylog(3, z))
+        return np.log(inst)
 
-    l_lo, l_hi = 1.0 * np.ones((N,)), 2.0 * np.ones((N,))
+    l_lo, l_hi = 1.0 * np.ones((1,)), 2.0 * np.ones((1,))
     iev_lo, iev_hi = log_inst(l_lo), log_inst(l_hi)
 
     log_cutoff = np.log(float(cutoff))
@@ -77,19 +85,14 @@ def _cutoff_ev_qvs_moduli(gvs, qvs, moduli, cutoff, max_trials, tol):
 
     return scaled_moduli
 
-def _cutoff_ev(moduli, gv_dict, cutoff_val, cutoff_max_trials, cutoff_tol):
+def _cutoff_ev(ray_gv_list, gv_dict_default, moduli, cutoff_val, cutoff_max_trials, cutoff_tol):
     moduli = moduli / np.linalg.norm(moduli, axis = 1).reshape(-1,1)
     scaled_moduli = np.zeros_like(moduli, dtype=np.float64)
 
-    N, d = moduli.shape[0], moduli.shape[1]
+    N = moduli.shape[0]
     
     for i in tqdm(range(N)):
-        gvs_i = np.array(list(gv_dict.values()), dtype=np.float64)
-        qvs_i = np.array(list(gv_dict.keys()), dtype=np.float64)
-        
-        gvs_i, qvs_i, moduli_i = gvs_i.reshape(1, -1), qvs_i.reshape(1, -1, d), moduli[i].reshape(1, d)
-
-        scaled_moduli[i] = _cutoff_ev_qvs_moduli(gvs_i, qvs_i, moduli_i, cutoff_val, cutoff_max_trials, cutoff_tol)
+        scaled_moduli[i] = _cutoff_ev_qvs_moduli(ray_gv_list, gv_dict_default, moduli[i], cutoff_val, cutoff_max_trials, cutoff_tol)
 
     return scaled_moduli
 
@@ -107,9 +110,8 @@ def cutoff_dict(h_s, diffeo, moduli_sample_factor, moduli_max,
             
             if gv_dict_mode == "degree":
                 gv_dict_default = cy_data.cutoff_gv_dict_deg
-            gv_dict = _nilpotent_begone(gv_dict_default.dok, ray_gv_list)
 
-            scaled_moduli = _cutoff_ev(moduli, gv_dict, cutoff_val, cutoff_max_trials, cutoff_tol)
+            scaled_moduli = _cutoff_ev(ray_gv_list, gv_dict_default, moduli, cutoff_val, cutoff_max_trials, cutoff_tol)
             cutoff[wall_data] = scaled_moduli
 
     if mode == "save":
@@ -125,6 +127,7 @@ def cutoff_dict(h_s, diffeo, moduli_sample_factor, moduli_max,
 
 #|%%--%%| <a4OAbF0QDE|EouizVw9ra>
 
+import matplotlib.pyplot as plt
 from collections import Counter
 
 def scatter_plot_2d(diffeo, cutoff, h_s):
