@@ -1,5 +1,5 @@
 import numpy as np
-import math
+import vegas
 from tqdm import tqdm
 
 #|%%--%%| <TW544k8r37|6WU9KONeFg>
@@ -46,34 +46,6 @@ from cydata import CYData
 class MCSampleParas:
     moduli_max: float
     sample_number: int = int(1e4)
-    sample_batch_number: int = int(1e2)
-    seed: int = 1
-    
-def kahler_cone_volume(h_s, hplane_n, sample_paras : MCSampleParas, sample_batch_no_custom = 0):
-    rng = np.random.default_rng(seed = sample_paras.seed)
-
-    sbno = max(10_000, sample_paras.sample_batch_number * 5, sample_batch_no_custom)
-
-    sample = rng.normal(size = (sbno, h_s))
-    sample /= np.linalg.norm(sample, axis=1).reshape(-1,1)
-
-    sample = (sample @ hplane_n > 0).all(axis=1)
-    volume = (2.0 * np.pi**(h_s/2.0) / math.gamma(h_s/2.0)) * sample.mean()
-
-    return volume
-
-def moduli_projection_sample(h_s, kahler_rays, sample_paras : MCSampleParas):
-    rng = np.random.default_rng(seed = sample_paras.seed)
-    rays_num = len(kahler_rays)
-
-    raw_moduli_im_samples = rng.uniform(0, sample_paras.moduli_max, size = (sample_paras.sample_batch_number, rays_num))
-    concat_krays = np.zeros((rays_num, rays_num))
-    concat_krays[:, :h_s] = kahler_rays
-    concat_krays[:, h_s:] = np.eye(rays_num, rays_num - h_s)
-    
-    moduli_im_samples_new = (raw_moduli_im_samples @ concat_krays)[:,:h_s]
-    
-    return moduli_im_samples_new
 
 def kahler_num(kijk, moduli_sample, ray_gv_list = None):
     polyK = 8/6 * np.einsum('abc,na,nb,nc->n', kijk, moduli_sample, moduli_sample, moduli_sample)
@@ -106,35 +78,6 @@ def kahler_num(kijk, moduli_sample, ray_gv_list = None):
 
     return logdetG_num, specgeo_num, pos_def_mask
 
-def distr_rho(cy_data : CYData, sample_paras : MCSampleParas):
-    sno, sbno = sample_paras.sample_number, sample_paras.sample_batch_number
-    moduli_distr = np.zeros((sno, cy_data.h_s))
-    integrand_distr = np.zeros((sno,))
-    
-    ray_gv_list = cy_data.flop_facet_ray_gv_list
-
-    sample_repeat_no = round(sno/sbno)
-
-    invariant = h_s_to_invariant(cy_data.h_s)
-
-    curr_pos = 0
-    
-    for _ in tqdm(range(sample_repeat_no)):
-        # part 1 : sample points inside kahler cone
-        ms_sample = moduli_projection_sample(cy_data.h_s, cy_data.kahler_extremal_rays, sample_paras)
-            
-        # part 2 : compute scalar density
-        logdetG, specgeo, pdmask = kahler_num(cy_data.kijk, ms_sample, ray_gv_list)
-        scalar = compute_invariant(invariant, specgeo) * np.pi**(-(cy_data.h_s+1)) # index vacua density = rho
-        integrand = scalar * np.exp(logdetG)
-        
-        moduli_distr[curr_pos:curr_pos + pdmask.shape[0]] = ms_sample[pdmask]
-        integrand_distr[curr_pos:curr_pos + pdmask.shape[0]] = integrand[pdmask]
-
-        curr_pos += pdmask.shape[0]
-
-    return moduli_distr[:curr_pos], integrand_distr[:curr_pos]
-
 #|%%--%%| <NixyaaHNsh|yMQdCgjdif>
 
 def _nilpotent_begone(gvs, ray_gv_list):
@@ -161,16 +104,50 @@ def integ_rho(cy_data : CYData, sample_paras : MCSampleParas):
     ray_gv_list = cy_data.flop_facet_ray_gv_list
     gv_dict_default = cy_data.cutoff_gv_dict
 
-    moduli_distr, scalar_distr = distr_rho(cy_data, sample_paras)
-    mask = moduli_check(ray_gv_list, gv_dict_default, moduli_distr)
-    scalar_distr = scalar_distr[mask]
+    invariant = h_s_to_invariant(cy_data.h_s)
+    
+    @vegas.batchintegrand
+    def distr_rho(ms):
+        rho_final = np.zeros(ms.shape[0])
 
-    scalar_mean = np.mean(scalar_distr)
-    volume = kahler_cone_volume(cy_data.h_s, cy_data.hplane_n, sample_paras) * np.sum(mask) / scalar_distr.shape[0]
+        kc_mask = (ms @ cy_data.hplane_n > 0).all(axis = 1) # kc : inside kahler cone
+        if not np.any(kc_mask):
+            return rho_final
+        ms_kc = ms[kc_mask]
 
-    scalar_integ = scalar_mean * volume
+        ic_mask = moduli_check(ray_gv_list, gv_dict_default, ms_kc) # ic : instanton convergence
+        if not np.any(ic_mask):
+            return rho_final
+        ms_ic = ms_kc[ic_mask]
 
-    return moduli_distr, scalar_distr, scalar_integ
+        logdetG, specgeo, pd_mask = kahler_num(cy_data.kijk, ms_ic, ray_gv_list) # pd : positive definitive
+        if not np.any(pd_mask):
+            return rho_final
+        logdetG_pd, specgeo_pd = logdetG[pd_mask], specgeo[pd_mask]
+
+        rho = compute_invariant(invariant, specgeo_pd) * np.exp(logdetG_pd) * np.pi**(-(cy_data.h_s + 1))
+
+        rho_pd = np.zeros(len(ms_ic))
+        rho_pd[pd_mask] = rho
+
+        rho_ic = np.zeros(len(ms_kc))
+        rho_ic[ic_mask] = rho_pd
+
+        rho_final[kc_mask] = rho_ic 
+
+        return rho_final
+
+    domain = [[-sample_paras.moduli_max, sample_paras.moduli_max]] * cy_data.h_s
+    integrand = vegas.Integrator(domain)
+    
+    # grid training
+    integrand(distr_rho, nitn=10, neval=sample_paras.sample_number)
+    
+    # evaluation
+    index_no = integrand(distr_rho, nitn=20, neval=sample_paras.sample_number * 2)
+
+    return index_no.mean, index_no.sdev
+
 
 #|%%--%%| <yMQdCgjdif|U9bfRiIKZf>
 
@@ -181,10 +158,10 @@ if __name__ == "__main__":
 
     cy_data_gen = load_cy_data_from_KS(h_s)
 
-    sample_paras = MCSampleParas(moduli_max = 10, sample_number = int(1e5), seed = None)
+    sample_paras = MCSampleParas(moduli_max = 10, sample_number = int(1e4))
 
     for i, cy_data in enumerate(cy_data_gen):
-        if i < 1:
-            _, _, index_no = integ_rho(cy_data, sample_paras)
-            
-            print(i, " : ", index_no)
+        if i < 2:
+            index_no, index_no_sdev = integ_rho(cy_data, sample_paras)
+        
+            print(i, " : ", index_no, " , ", index_no_sdev)
