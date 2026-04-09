@@ -107,14 +107,17 @@ def kahler_num(kijk, moduli_sample, ray_gv_list = None):
     return logdetG_num, specgeo_num, pos_def_mask
 
 def distr_rho(cy_data : CYData, sample_paras : MCSampleParas):
-    moduli_distr = []
-    integrand_distr = []
+    sno, sbno = sample_paras.sample_number, sample_paras.sample_batch_number
+    moduli_distr = np.zeros((sno, cy_data.h_s))
+    integrand_distr = np.zeros((sno,))
     
     ray_gv_list = cy_data.flop_facet_ray_gv_list
 
-    sample_repeat_no = round(sample_paras.sample_number / sample_paras.sample_batch_number)
+    sample_repeat_no = round(sno/sbno)
 
     invariant = h_s_to_invariant(cy_data.h_s)
+
+    curr_pos = 0
     
     for _ in tqdm(range(sample_repeat_no)):
         # part 1 : sample points inside kahler cone
@@ -125,13 +128,12 @@ def distr_rho(cy_data : CYData, sample_paras : MCSampleParas):
         scalar = compute_invariant(invariant, specgeo) * np.pi**(-(cy_data.h_s+1)) # index vacua density = rho
         integrand = scalar * np.exp(logdetG)
         
-        moduli_distr.append(ms_sample[pdmask])
-        integrand_distr.append(integrand)
+        moduli_distr[curr_pos:curr_pos + pdmask.shape[0]] = ms_sample[pdmask]
+        integrand_distr[curr_pos:curr_pos + pdmask.shape[0]] = integrand[pdmask]
 
-    moduli_distr = np.concatenate(moduli_distr, axis = 0)
-    scalar_distr = np.concatenate(integrand_distr, axis = 0)
+        curr_pos += pdmask.shape[0]
 
-    return moduli_distr, scalar_distr
+    return moduli_distr[:curr_pos], integrand_distr[:curr_pos]
 
 #|%%--%%| <NixyaaHNsh|yMQdCgjdif>
 
