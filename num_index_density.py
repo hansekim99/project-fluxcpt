@@ -1,5 +1,4 @@
 import numpy as np
-import vegas
 import h5py
 
 #|%%--%%| <TW544k8r37|6WU9KONeFg>
@@ -88,6 +87,9 @@ def kahler_num(kijk, moduli_sample, ray_gv_list = None, instanton_corr_kijk = Tr
 
 #|%%--%%| <NixyaaHNsh|yMQdCgjdif>
 
+import vegas
+import time
+
 def _nilpotent_begone(gvs, ray_gv_list):
     for ray_gv in ray_gv_list:
         ray = ray_gv[0]
@@ -162,13 +164,21 @@ def integ_rho(cy_data : CYData, sample_paras : MCSampleParas, config_paras : MCI
     domain = [[-sample_paras.moduli_max, sample_paras.moduli_max]] * cy_data.h_s
     integrand = vegas.Integrator(domain)
     
-    # grid training
+    # grid adapting
+    t_t_i = time.perf_counter()
     integrand(distr_rho, nitn=10, neval=sample_paras.sample_number)
+    t_t_f = time.perf_counter()
+
+    print(f"Grid adaptation time : {t_t_f - t_t_i:.2f} s")
     
     # evaluation
     if config_paras.graph_data_mode:
         graph_data_internal_flag = True
-    index_no = integrand(distr_rho, nitn=20, neval=sample_paras.sample_number * 2)
+    t_e_i = time.perf_counter()
+    index_no = integrand(distr_rho, nitn=10, neval=sample_paras.sample_number * 2)
+    t_e_f = time.perf_counter()
+    
+    print(f"Evaluation time : {t_e_f - t_e_i:.2f} s")
     
     graph_data_moduli = np.vstack(graph_data_moduli)
     graph_data_scalar = np.concatenate(graph_data_scalar)
@@ -184,12 +194,13 @@ from cydata import load_cy_data_from_KS
 if __name__ == "__main__":
     # h_s = 2 : sno ~ 1e2~3
     # h_s = 3 : sno ~ 1e4
-    h_s = 2
+    h_s = 3
+    max_calc = 200
 
     cy_data_gen = load_cy_data_from_KS(h_s)
 
     sample_paras = MCSampleParas(moduli_max = 20, 
-                                 sample_number = int(1e3))
+                                 sample_number = int(1e4))
 
     config_paras = MCIntegParas(instanton_corr_kijk_mode = True,
                                 instanton_corr_metr_mode = True,
@@ -201,7 +212,7 @@ if __name__ == "__main__":
     folder_path.mkdir(parents = True, exist_ok = True)
     with h5py.File(folder_path / f"index_density_h_s={h_s}.h5", "a") as db:
         for i, cy_data in enumerate(cy_data_gen):
-            if i < 1:
+            if i < max_calc:
                 wd_str = cy_data.wall_data
                 if wd_str in db:
                     del db[wd_str]
@@ -214,7 +225,6 @@ if __name__ == "__main__":
                 grp.create_dataset('scalar', data = np.array(scalar), compression = "gzip")
             
                 print(f"{i} : {index_no:.2E} , {index_no_sdev:.2E}")
-            # TODO : measure elapsed time
             # TODO : compare with old algo
 
             # TODO : include prefactor
