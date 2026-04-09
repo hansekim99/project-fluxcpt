@@ -46,6 +46,7 @@ Mirror symmetry maps the type IIb theory on ${ X_{3} }$ to a type IIa theory on 
 $${ \dfrac{F(z)}{(Z^{0})^{2} } = -\dfrac{1}{3!} \kappa _{ijk}z^{i}z^{j}z^{k} + \dfrac{1}{2}a_{ij} z^{i}z^{j} + b_{i}z^{i} + \xi + F_{\text{inst}} , }$$
 
 where ${ \kappa _{ijk} }$ are the intersection numbers of ${ \tilde{X}_{3} }$, the parameters depend on the (1,1)-forms of ${ \tilde{X}_{3} }$ and the second Chern class ${ c_{2}(\tilde{X}_{3}) }$ as
+
 $${ \begin{aligned}
 \kappa _{ijk} &= \int _{\tilde{X}_{3}} J_{i} \wedge J_{j}\wedge J_{k}, & a_{ij} &= \dfrac{1}{2}\int _{\tilde{X}_{3}}J_{i} \wedge J_{j} \wedge J_{k}  \\
 b_{i} &= \dfrac{1}{4!} \int _{\tilde{X}_{3}} c_{2}(\tilde{X}_{3}) \wedge J_{i}, & \xi &= \dfrac{i}{2} \dfrac{\zeta (3)\chi (\tilde{X}_{3})}{(2\pi )^{3} },
@@ -90,5 +91,4 @@ The metric is positive-definite only in the Kahler cone of the dual threefold, $
 $${ \mathcal{F}_{IJK} = -i (e^{i}_{I})(e^{j}_{K})(e^{k}_{K}) y_{ijk} e^{K} }$$
 
 where indices ${ I,J,K = 1,\cdots ,h^{1,2} }$ are used distinctively from the period basis above.
-
 

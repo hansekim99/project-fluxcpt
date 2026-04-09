@@ -113,7 +113,8 @@ def index_density(n):
 #|%%--%%| <dq53fCWSkj|MNbnT2PYKr>
 
 import numpy as np 
-import pickle, string
+import h5py, string, json
+import ast
 
 def partition(A):
     A = np.asarray(A)
@@ -168,8 +169,13 @@ def block_to_str(block):
     return ','.join(ins) + '->Z'
 
 def h_s_to_invariant(h_s):
-    with open(f"data/cmbn_index/index_cmbn_{h_s}.json", "rb") as f:
-        rho = pickle.load(f)
+    with h5py.File(f"data/index_cmbn.h5", "a") as db:
+        if f"h_s={h_s}" in db and 'rho_dict' in db[f"h_s={h_s}"]:
+            rho_dict_json = db[f"h_s={h_s}"]['rho_dict'][()]
+            # if isinstance(rho_dict, bytes):
+            #     rho_dict = rho_dict.decode('utf-8')
+            rho_dict_str = json.loads(rho_dict_json)
+            rho = {ast.literal_eval(k): v for k, v in rho_dict_str.items()} 
 
     tot_str = dict()
 
@@ -191,13 +197,22 @@ def h_s_to_invariant(h_s):
 #|%%--%%| <MNbnT2PYKr|XhZdbuJo7u>
 
 if __name__ == "__main__":
-    h_s = 3
-    #rho = index_density(h_s)
-    
-    #cmbn_utils.dict_print(rho)
+    h_s = 5
+    rho = index_density(h_s)
+    # cmbn_utils.dict_print(rho)
 
-    #with open(f"data/cmbn_index/index_cmbn_{h_s}.json", "wb") as f:
-    #    pickle.dump(rho, f)
+    rho_key_str = {str(k) : float(v) for k, v in rho.items()}
+    rho_json = json.dumps(rho_key_str)
+
+    with h5py.File(f"data/index_cmbn.h5", "a") as db:
+        h_s_str = f"h_s={h_s}"
+        if h_s_str not in db:
+            grp = db.create_group(h_s_str)
+        else:
+            grp = db[h_s_str]
+        if 'rho_dict' in grp:
+            del grp['rho_dict']
+        grp.create_dataset('rho_dict', data = rho_json)
     
     tot_str = h_s_to_invariant(h_s)
     print(tot_str)
