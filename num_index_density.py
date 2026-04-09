@@ -1,6 +1,6 @@
 import numpy as np
 import vegas
-from tqdm import tqdm
+import h5py
 
 #|%%--%%| <TW544k8r37|6WU9KONeFg>
 
@@ -54,7 +54,7 @@ class MCIntegParas:
     instanton_cutoff_mode : float = 1
     graph_data_mode: bool = False
 
-def kahler_num(kijk, moduli_sample, ray_gv_list = None):
+def kahler_num(kijk, moduli_sample, ray_gv_list = None, instanton_corr_kijk = True, instanton_corr_metr = True):
     polyK = 8/6 * np.einsum('abc,na,nb,nc->n', kijk, moduli_sample, moduli_sample, moduli_sample)
     scalarK = -np.log(polyK)
 
@@ -74,9 +74,10 @@ def kahler_num(kijk, moduli_sample, ray_gv_list = None):
         specgeo_num = np.einsum('nai,nbj,nck,abc->nijk', vb_num, vb_num, vb_num, kijk) * np.exp(scalarK[:,None,None,None])
     else:
         k_ijk = np.stack([kijk] * moduli_sample.shape[0]).astype('float64')
-        for ray_gv in ray_gv_list:
-            ray, gv = np.array(ray_gv[0]), ray_gv[1]
-            k_ijk = k_ijk + gv * ray[None,:,None,None] * ray[None,None,:,None] * ray[None,None,None,:] * polylog(0, np.exp(-2*np.pi*(moduli_sample @ ray)))[:,None,None,None]
+        if instanton_corr_kijk:
+            for ray_gv in ray_gv_list:
+                ray, gv = np.array(ray_gv[0]), ray_gv[1]
+                k_ijk = k_ijk + gv * ray[None,:,None,None] * ray[None,None,:,None] * ray[None,None,None,:] * polylog(0, np.exp(-2*np.pi*(moduli_sample @ ray)))[:,None,None,None]
 
         specgeo_num = np.einsum('nai,nbj,nck,nabc->nijk', vb_num, vb_num, vb_num, k_ijk) * np.exp(scalarK[:,None,None,None])
     
@@ -95,7 +96,7 @@ def _nilpotent_begone(gvs, ray_gv_list):
             del gvs[tuple(d * ray)]
     return gvs
 
-def moduli_check(ray_gv_list, gv_dict_default, moduli):
+def moduli_check(ray_gv_list, gv_dict_default, moduli, cutoff):
     gv_dict = _nilpotent_begone(gv_dict_default, ray_gv_list)
 
     gvs = np.array(list(gv_dict.values()), dtype=np.float64)
@@ -103,7 +104,7 @@ def moduli_check(ray_gv_list, gv_dict_default, moduli):
 
     exponent = np.exp(-2*np.pi*np.einsum("md,Nd->Nm", qvs, moduli))
     instanton = np.einsum("m,Nm->N", np.abs(gvs), polylog(3,exponent))
-    mask = instanton < 1
+    mask = instanton < cutoff
 
     return mask
 
@@ -112,6 +113,10 @@ def integ_rho(cy_data : CYData, sample_paras : MCSampleParas, config_paras : MCI
     gv_dict_default = cy_data.cutoff_gv_dict
 
     invariant = h_s_to_invariant(cy_data.h_s)
+
+    graph_data_internal_flag = False
+    graph_data_moduli = []
+    graph_data_scalar = []
     
     @vegas.batchintegrand
     def distr_rho(ms):
@@ -121,24 +126,34 @@ def integ_rho(cy_data : CYData, sample_paras : MCSampleParas, config_paras : MCI
         if not np.any(kc_mask):
             return rho_final
         ms_kc = ms[kc_mask]
+        
+        if config_paras.instanton_cutoff_mode == 0:
+            ms_ic = ms_kc
+        else:
+            ic_mask = moduli_check(ray_gv_list, gv_dict_default, ms_kc, config_paras.instanton_cutoff_mode) # ic : instanton convergence
+            if not np.any(ic_mask):
+                return rho_final
+            ms_ic = ms_kc[ic_mask]
 
-        ic_mask = moduli_check(ray_gv_list, gv_dict_default, ms_kc) # ic : instanton convergence
-        if not np.any(ic_mask):
-            return rho_final
-        ms_ic = ms_kc[ic_mask]
-
-        logdetG, specgeo, pd_mask = kahler_num(cy_data.kijk, ms_ic, ray_gv_list) # pd : positive definitive
+        logdetG, specgeo, pd_mask = kahler_num(cy_data.kijk, ms_ic, ray_gv_list, config_paras.instanton_corr_kijk_mode, config_paras.instanton_corr_metr_mode) # pd : positive definitive
         if not np.any(pd_mask):
             return rho_final
         logdetG_pd, specgeo_pd = logdetG[pd_mask], specgeo[pd_mask]
 
         rho = compute_invariant(invariant, specgeo_pd) * np.exp(logdetG_pd) * np.pi**(-(cy_data.h_s + 1))
 
+        if graph_data_internal_flag:
+            graph_data_moduli.append(ms_ic[pd_mask])
+            graph_data_scalar.append(rho)
+
         rho_pd = np.zeros(len(ms_ic))
         rho_pd[pd_mask] = rho
-
-        rho_ic = np.zeros(len(ms_kc))
-        rho_ic[ic_mask] = rho_pd
+        
+        if config_paras.instanton_cutoff_mode == 0:
+            rho_ic = rho_pd
+        else:
+            rho_ic = np.zeros(len(ms_kc))
+            rho_ic[ic_mask] = rho_pd
 
         rho_final[kc_mask] = rho_ic 
 
@@ -151,9 +166,14 @@ def integ_rho(cy_data : CYData, sample_paras : MCSampleParas, config_paras : MCI
     integrand(distr_rho, nitn=10, neval=sample_paras.sample_number)
     
     # evaluation
+    if config_paras.graph_data_mode:
+        graph_data_internal_flag = True
     index_no = integrand(distr_rho, nitn=20, neval=sample_paras.sample_number * 2)
+    
+    graph_data_moduli = np.vstack(graph_data_moduli)
+    graph_data_scalar = np.concatenate(graph_data_scalar)
 
-    return index_no.mean, index_no.sdev
+    return index_no.mean, index_no.sdev, graph_data_moduli, graph_data_scalar
 
 
 #|%%--%%| <yMQdCgjdif|U9bfRiIKZf>
@@ -163,24 +183,34 @@ from cydata import load_cy_data_from_KS
 if __name__ == "__main__":
     # h_s = 2 : sno ~ 1e2~3
     # h_s = 3 : sno ~ 1e4
-    h_s = 3
+    h_s = 2
 
     cy_data_gen = load_cy_data_from_KS(h_s)
 
     sample_paras = MCSampleParas(moduli_max = 20, 
-                                 sample_number = int(1e4))
+                                 sample_number = int(1e3))
 
     config_paras = MCIntegParas(instanton_corr_kijk_mode = True,
                                 instanton_corr_metr_mode = True,
-                                instanton_cutoff_mode = 1,
-                                graph_data_mode = False)
+                                instanton_cutoff_mode = 1, # ignore at 0
+                                # TODO : implement tip of stretched cone method to compare
+                                graph_data_mode = True)
 
-    for i, cy_data in enumerate(cy_data_gen):
-        if i < 1:
-            index_no, index_no_sdev = integ_rho(cy_data, sample_paras, config_paras)
-        
-            print(f"{i} : {index_no:.2E} , {index_no_sdev:.2E}")
-            # TODO : save data to files
+    with h5py.File(f"data/num_index_density/index_density_h_s={h_s}.h5", "a") as db:
+        for i, cy_data in enumerate(cy_data_gen):
+            if i < 1:
+                wd_str = cy_data.wall_data
+                if wd_str in db:
+                    del db[wd_str]
+                grp = db.create_group(wd_str)
+
+                index_no, index_no_sdev, moduli, scalar = integ_rho(cy_data, sample_paras, config_paras)
+
+                grp.create_dataset('index_no', data = np.array([index_no, index_no_sdev]))
+                grp.create_dataset('moduli', data = np.array(moduli), compression = "gzip")
+                grp.create_dataset('scalar', data = np.array(scalar), compression = "gzip")
+            
+                print(f"{i} : {index_no:.2E} , {index_no_sdev:.2E}")
             # TODO : measure elapsed time
             # TODO : compare with old algo
 
