@@ -178,6 +178,7 @@ def integ_rho(cy_data : CYData, sample_paras : MCSampleParas, config_paras : MCI
 
 #|%%--%%| <yMQdCgjdif|U9bfRiIKZf>
 
+from pathlib import Path
 from cydata import load_cy_data_from_KS
 
 if __name__ == "__main__":
@@ -195,8 +196,10 @@ if __name__ == "__main__":
                                 instanton_cutoff_mode = 1, # ignore at 0
                                 # TODO : implement tip of stretched cone method to compare
                                 graph_data_mode = True)
-
-    with h5py.File(f"data/num_index_density/index_density_h_s={h_s}.h5", "a") as db:
+    
+    folder_path = Path("data/num_index_density")
+    folder_path.mkdir(parents = True, exist_ok = True)
+    with h5py.File(folder_path / f"index_density_h_s={h_s}.h5", "a") as db:
         for i, cy_data in enumerate(cy_data_gen):
             if i < 1:
                 wd_str = cy_data.wall_data

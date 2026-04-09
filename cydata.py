@@ -188,9 +188,12 @@ class CYData:
 #|%%--%%| <l4k7YG8zLq|D1L36ySRP5>
 
 import h5py
+from pathlib import Path
 
 def save_cy_data_from_KS(h_s, polytope_no_start = 0, polytope_no_max = 100, cutoff_gv_dict_deg = 2, flop_gv_dict_deg = 3):
-    with h5py.File(f"data/cydata/cy_data_h_s={h_s}.h5", "a") as db:
+    folder_path = Path("data/cy_data")
+    folder_path.mkdir(parents = True, exist_ok = True)
+    with h5py.File(folder_path / f"cy_data_h_s={h_s}.h5", "a") as db:
         polytope_list = fetch_polytopes(h11 = h_s, lattice = "N", limit = polytope_no_max)
         wall_data_set = CYData.wall_data_set_from_KS(polytope_list, cutoff_gv_dict_deg, flop_gv_dict_deg)
 
