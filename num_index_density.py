@@ -47,6 +47,13 @@ class MCSampleParas:
     moduli_max: float
     sample_number: int = int(1e4)
 
+@dataclass
+class MCIntegParas:
+    instanton_corr_kijk_mode: bool = True
+    instanton_corr_metr_mode: bool = True
+    instanton_cutoff_mode : float = 1
+    graph_data_mode: bool = False
+
 def kahler_num(kijk, moduli_sample, ray_gv_list = None):
     polyK = 8/6 * np.einsum('abc,na,nb,nc->n', kijk, moduli_sample, moduli_sample, moduli_sample)
     scalarK = -np.log(polyK)
@@ -100,7 +107,7 @@ def moduli_check(ray_gv_list, gv_dict_default, moduli):
 
     return mask
 
-def integ_rho(cy_data : CYData, sample_paras : MCSampleParas):
+def integ_rho(cy_data : CYData, sample_paras : MCSampleParas, config_paras : MCIntegParas):
     ray_gv_list = cy_data.flop_facet_ray_gv_list
     gv_dict_default = cy_data.cutoff_gv_dict
 
@@ -154,14 +161,30 @@ def integ_rho(cy_data : CYData, sample_paras : MCSampleParas):
 from cydata import load_cy_data_from_KS
 
 if __name__ == "__main__":
+    # h_s = 2 : sno ~ 1e2~3
+    # h_s = 3 : sno ~ 1e4
     h_s = 3
 
     cy_data_gen = load_cy_data_from_KS(h_s)
 
-    sample_paras = MCSampleParas(moduli_max = 10, sample_number = int(1e4))
+    sample_paras = MCSampleParas(moduli_max = 20, 
+                                 sample_number = int(1e4))
+
+    config_paras = MCIntegParas(instanton_corr_kijk_mode = True,
+                                instanton_corr_metr_mode = True,
+                                instanton_cutoff_mode = 1,
+                                graph_data_mode = False)
 
     for i, cy_data in enumerate(cy_data_gen):
-        if i < 2:
-            index_no, index_no_sdev = integ_rho(cy_data, sample_paras)
+        if i < 1:
+            index_no, index_no_sdev = integ_rho(cy_data, sample_paras, config_paras)
         
-            print(i, " : ", index_no, " , ", index_no_sdev)
+            print(f"{i} : {index_no:.2E} , {index_no_sdev:.2E}")
+            # TODO : save data to files
+            # TODO : measure elapsed time
+            # TODO : compare with old algo
+
+            # TODO : include prefactor
+            
+            # TODO : implement faster tensor calculations
+            # TODO : implement conformal + conifold integration
